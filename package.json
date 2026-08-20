@@ -1,0 +1,32 @@
+{
+  "name": "finova-markets",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Finova Markets — AI-powered market intelligence (Phase 0 frontend foundation)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "server": "node --env-file-if-exists=.env --import tsx src/analyst/server/server.ts",
+    "lint": "tsc --noEmit",
+    "test": "node --import tsx --test src/analyst/technical/__tests__/*.test.ts src/analyst/technical/patterns/__tests__/*.test.ts src/analyst/technical/confluence/__tests__/*.test.ts src/analyst/technical/historical/__tests__/*.test.ts src/analyst/tools/__tests__/*.test.ts src/analyst/agent/__tests__/*.test.ts src/analyst/server/__tests__/*.test.ts src/analyst/websearch/__tests__/*.test.ts src/analyst/conversation/__tests__/*.test.ts"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.45",
+    "tailwindcss": "^3.4.10",
+    "tsx": "^4.23.12",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  }
+}

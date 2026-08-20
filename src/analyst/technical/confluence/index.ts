@@ -1,0 +1,8 @@
+export * from './types'
+export * from './weights'
+export { normalizeEvidence, freshnessOf, baseWeight, resetEvidenceIdCounter } from './evidence'
+export { groupSummaries, scoreFromGroups, biasFromBalance, saturate, clamp, EVIDENCE_GROUPS } from './scoring'
+export { detectConflicts, conflictImpact, resetConflictIdCounter } from './conflicts'
+export { buildTimeframeConfluence, viewFor } from './timeframe'
+export { buildThesis } from './thesis'
+export { buildConfluenceContext, BIAS_THRESHOLD } from './confluenceEngine'

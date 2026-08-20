@@ -1,0 +1,22 @@
+src/analyst/agent/__tests__/webSearch.test.ts(315,13): error TS18048: 'output.response.summary' is possibly 'undefined'.
+src/analyst/websearch/__tests__/normalize.test.ts(53,5): error TS2741: Property 'source' is missing in type '{ title: string; url: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(54,5): error TS2741: Property 'source' is missing in type '{ url: string; title: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(55,5): error TS2741: Property 'source' is missing in type '{ url: string; title: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(56,5): error TS2741: Property 'source' is missing in type '{ url: string; title: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(65,33): error TS2741: Property 'source' is missing in type '{ title: string; url: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(65,38): error TS2741: Property 'source' is missing in type '{ title: string; url: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(65,43): error TS2741: Property 'source' is missing in type '{ title: string; url: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(65,48): error TS2741: Property 'source' is missing in type '{ title: string; url: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(65,53): error TS2741: Property 'source' is missing in type '{ title: string; url: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/normalize.test.ts(68,33): error TS2741: Property 'source' is missing in type '{ title: string; url: string; snippet: string; publishedAt: null; provider: "tavily"; }' but required in type 'WebSearchResult'.
+src/analyst/websearch/__tests__/providers.test.ts(35,37): error TS2339: Property 'init' does not exist on type 'never'.
+src/analyst/websearch/__tests__/providers.test.ts(36,26): error TS2339: Property 'url' does not exist on type 'never'.
+src/analyst/websearch/__tests__/providers.test.ts(106,23): error TS2339: Property 'url' does not exist on type 'never'.
+src/analyst/websearch/__tests__/providers.test.ts(107,48): error TS2339: Property 'url' does not exist on type 'never'.
+src/analyst/websearch/__tests__/providers.test.ts(111,29): error TS2339: Property 'init' does not exist on type 'never'.
+src/analyst/websearch/__tests__/searchGateway.test.ts(19,11): error TS2322: Type '() => Promise<{ results: unknown[]; }>' is not assignable to type '(request: SearchProviderRequest) => Promise<SearchProviderResult>'.
+  Type 'Promise<{ results: unknown[]; }>' is not assignable to type 'Promise<SearchProviderResult>'.
+    Type '{ results: unknown[]; }' is not assignable to type 'SearchProviderResult'.
+      Types of property 'results' are incompatible.
+        Type 'unknown[]' is not assignable to type 'RawSearchResult[]'.
+          Type 'unknown' is not assignable to type 'RawSearchResult'.

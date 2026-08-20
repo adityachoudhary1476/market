@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://finova.markets/sitemap.xml

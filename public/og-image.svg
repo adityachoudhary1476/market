@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0B0C0B"/>
+      <stop offset="100%" stop-color="#151716"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#C9B27C" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#C9B27C" stop-opacity="1"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g opacity="0.06" fill="none" stroke="#F3EFE6">
+    <path d="M0 120 H1200 M0 240 H1200 M0 360 H1200 M0 480 H1200"/>
+    <path d="M120 0 V630 M360 0 V630 M600 0 V630 M840 0 V630 M1080 0 V630"/>
+  </g>
+  <g transform="translate(96,120)">
+    <rect width="44" height="44" rx="10" fill="#C9B27C" opacity="0.16"/>
+    <path d="M14 32 L24 20 L31 27 L42 12" fill="none" stroke="#C9B27C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="62" y="30" font-family="Georgia, serif" font-size="30" font-weight="600" fill="#F3EFE6">Finova</text>
+    <text x="62" y="50" font-family="Helvetica, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="3" fill="#F3EFE6" opacity="0.55">MARKETS</text>
+  </g>
+  <text x="96" y="340" font-family="Georgia, serif" font-size="76" font-weight="600" fill="#F3EFE6">Understand the market.</text>
+  <text x="96" y="430" font-family="Georgia, serif" font-size="76" font-weight="600" fill="#C9B27C">Don't just watch it.</text>
+  <text x="98" y="498" font-family="Helvetica, Arial, sans-serif" font-size="24" fill="#F3EFE6" opacity="0.65">AI-powered market intelligence for modern investors.</text>
+  <g transform="translate(820,150)">
+    <rect x="0" y="0" width="300" height="220" rx="16" fill="#F3EFE6" opacity="0.04" stroke="#F3EFE6" stroke-opacity="0.1"/>
+    <path d="M24 160 L80 110 L130 140 L190 70 L276 50" fill="none" stroke="url(#line)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="276" cy="50" r="5" fill="#C9B27C"/>
+    <rect x="24" y="180" width="252" height="8" rx="4" fill="#F3EFE6" opacity="0.1"/>
+    <rect x="24" y="180" width="170" height="8" rx="4" fill="#C9B27C"/>
+  </g>
+</svg>
