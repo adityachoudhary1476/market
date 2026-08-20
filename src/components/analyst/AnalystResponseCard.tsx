@@ -36,7 +36,7 @@ function ActionButton({ action }: { action: AnalystAction }) {
 function Metrics({ response }: { response: AnalystResponse }) {
   if (!response.metrics?.length) return null
   return (
-    <div className="my-3 flex flex-wrap gap-x-5 gap-y-2">
+    <div className="my-3 flex flex-wrap gap-x-5 gap-y-1.5">
       {response.metrics.map((m, i) => {
         const tone = m.trend === 'up' ? 'text-gain' : m.trend === 'down' ? 'text-loss' : 'text-stone-500'
         return <div key={i} className="flex items-baseline gap-1.5 text-sm">
@@ -71,32 +71,46 @@ function Sources({ sources }: { sources: NonNullable<AnalystResponse['sources']>
   )
 }
 
-/** Conversational renderer: the answer reads like a message, not a report card. */
+function isDeepResponse(response: AnalystResponse, sectionCount: number) {
+  return response.intent === 'briefing' || response.intent === 'weekly' || response.intent === 'plan' || sectionCount > 2 || Boolean(response.table || response.chart || response.plan)
+}
+
+/**
+ * ChatGPT-style conversational renderer.
+ * The model can still return rich structured evidence, but the default visual
+ * language is a message: answer first, whitespace between ideas, and details
+ * only when they add value. Structured widgets are reserved for genuinely
+ * complex analysis.
+ */
 export function AnalystResponseCard({ response }: { response: AnalystResponse }) {
   const sections = response.sections ?? []
-  const showTitle = response.intent === 'briefing' || response.intent === 'weekly' || response.intent === 'plan' || sections.length > 3
+  const deep = isDeepResponse(response, sections.length)
+  const singleSection = sections.length === 1
 
   return (
     <article className="animate-fade-up px-1 py-2 sm:px-2">
       <div className="flex items-start gap-3">
         <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-obsidian-800 text-gold-300"><IconBrain size={15} /></span>
         <div className="min-w-0 flex-1">
-          {showTitle && <h3 className="mb-2 font-display text-base font-semibold text-obsidian-900">{response.title}</h3>}
+          {deep && response.title && <h3 className="mb-2 font-display text-base font-semibold text-obsidian-900">{response.title}</h3>}
 
           {response.summary && <p className="text-[15px] leading-7 text-obsidian-900 sm:text-base">{response.summary}</p>}
           {response.partial && <p className="mt-2 text-[11px] italic text-stone-400">Some live evidence was unavailable, so this is based on the data that was available.</p>}
 
           <Metrics response={response} />
 
-          {sections.length > 0 && <div className="mt-4 space-y-4">
-            {sections.map((section, i) => <section key={i}>
-              {section.heading && <h4 className="mb-1 text-sm font-semibold text-obsidian-900">{section.heading}</h4>}
-              {section.body && <p className="text-sm leading-6 text-stone-700">{section.body}</p>}
-              {section.bullets?.length ? <ul className="mt-1.5 space-y-1.5">{section.bullets.map((bullet, j) => <li key={j} className="flex gap-2 text-sm leading-6 text-stone-700"><span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-stone-300" /><span>{bullet}</span></li>)}</ul> : null}
-            </section>)}
+          {sections.length > 0 && <div className={cn('space-y-4', response.summary ? 'mt-3' : 'mt-1')}>
+            {sections.map((section, i) => {
+              const showHeading = deep || !singleSection
+              return <section key={i}>
+                {showHeading && section.heading && <h4 className="mb-1 text-sm font-semibold text-obsidian-900">{section.heading}</h4>}
+                {section.body && <p className="text-sm leading-6 text-stone-700">{section.body}</p>}
+                {section.bullets?.length ? <ul className="mt-1.5 space-y-1.5">{section.bullets.map((bullet, j) => <li key={j} className="flex gap-2 text-sm leading-6 text-stone-700"><span className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-stone-300" /><span>{bullet}</span></li>)}</ul> : null}
+              </section>
+            })}
           </div>}
 
-          {response.findings?.length ? <div className="mt-4 space-y-2">{response.findings.map((f, i) => <p key={i} className="text-sm leading-6 text-stone-700"><span className="font-semibold text-obsidian-900">{f.title}:</span> {f.detail}{f.metric ? <span className="ml-1 font-semibold text-gold-700">{f.metric}</span> : null}</p>)}</div> : null}
+          {response.findings?.length ? <div className="mt-3 space-y-1.5">{response.findings.map((f, i) => <p key={i} className="text-sm leading-6 text-stone-700"><span className="font-semibold text-obsidian-900">{f.title}:</span> {f.detail}{f.metric ? <span className="ml-1 font-semibold text-gold-700">{f.metric}</span> : null}</p>)}</div> : null}
 
           {response.chart && <div className="mt-4"><AnalystBarChart chart={response.chart} /></div>}
 
@@ -115,9 +129,11 @@ export function AnalystResponseCard({ response }: { response: AnalystResponse })
             {step.action && <div className="mt-2"><ActionButton action={step.action} /></div>}
           </li>)}</ol> : null}
 
-          {response.recommendations?.length ? <div className="mt-4 space-y-1.5 text-sm text-stone-700">{response.recommendations.map((r, i) => <p key={i}><span className="mr-2 text-gold-600">→</span>{r}</p>)}</div> : null}
-          {response.actions?.length ? <div className="mt-4 flex flex-wrap gap-2">{response.actions.map((a, i) => <ActionButton key={i} action={a} />)}</div> : null}
-          {response.confidence && <p className="mt-4 text-[11px] text-stone-400">Confidence: <span className="font-medium text-stone-500">{response.confidence}</span></p>}
+          {response.recommendations?.length ? <div className="mt-3 space-y-1 text-sm leading-6 text-stone-700">{response.recommendations.map((r, i) => <p key={i}><span className="mr-2 text-gold-600">→</span>{r}</p>)}</div> : null}
+          {response.actions?.length ? <div className="mt-3 flex flex-wrap gap-2">{response.actions.map((a, i) => <ActionButton key={i} action={a} />)}</div> : null}
+
+          {/* Confidence is useful for deep research, but noisy on ordinary chat. */}
+          {deep && response.confidence && <p className="mt-4 text-[11px] text-stone-400">Confidence: <span className="font-medium text-stone-500">{response.confidence}</span></p>}
           {response.sources?.length ? <Sources sources={response.sources} /> : null}
         </div>
       </div>
