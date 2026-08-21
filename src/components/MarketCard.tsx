@@ -26,6 +26,11 @@ export function MarketCard({ market, featured = false }: MarketCardProps) {
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-obsidian-900">{market.symbol}</h3>
+            {market.dataMode && (
+              <span className="text-[9px] font-medium uppercase tracking-wider text-stone-400">
+                {market.dataMode}
+              </span>
+            )}
             <span
               className={cn(
                 'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider',

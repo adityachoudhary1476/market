@@ -21,6 +21,14 @@ export function MarketBreadth() {
         <span className="text-xs text-stone-500">NSE all-cap</span>
       </div>
 
+      {breadth.dataMode && (
+        <div className="mt-3">
+          <span className="inline-flex items-center rounded-full border border-obsidian-900/10 bg-ivory-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+            {breadth.dataMode}
+          </span>
+        </div>
+      )}
+
       {/* Stacked bar */}
       <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-stone-100">
         <div className="bg-gain transition-all duration-700" style={{ width: `${aPct}%` }} />

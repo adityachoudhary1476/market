@@ -8,14 +8,19 @@
 // ---------------------------------------------------------------------------
 
 import type { SearchProviderId, WebSearchProvider } from '../types'
-import { createBraveProvider } from './brave'
-import { createTavilyProvider } from './tavily'
 import type { FetchLike } from './tavily'
 import { SUPPORTED_SEARCH_PROVIDERS, type SupportedSearchProvider } from '../server/env'
+import { createBraveProvider } from './brave'
+import { createTavilyProvider } from './tavily'
+import { createRssProvider } from './rss'
+
+export { createRssProvider } from './rss'
+export { createBraveProvider } from './brave'
+export { createTavilyProvider } from './tavily'
 
 export interface WebSearchProviderConfig {
   provider: SupportedSearchProvider
-  apiKey: string
+  apiKey?: string
   timeoutMs?: number
   /** Optional endpoint override (self-hosted provider). */
   baseUrl?: string
@@ -24,10 +29,13 @@ export interface WebSearchProviderConfig {
 
 /** Build the configured provider. The caller guarantees provider/apiKey are valid. */
 export function createWebSearchProvider(config: WebSearchProviderConfig): WebSearchProvider {
-  if (config.provider === 'tavily') {
-    return createTavilyProvider({ apiKey: config.apiKey, timeoutMs: config.timeoutMs, baseUrl: config.baseUrl, fetchImpl: config.fetchImpl })
+  if (config.provider === 'rss') {
+    return createRssProvider({ feedUrl: config.baseUrl ?? '', timeoutMs: config.timeoutMs, fetchImpl: config.fetchImpl })
   }
-  return createBraveProvider({ apiKey: config.apiKey, timeoutMs: config.timeoutMs, baseUrl: config.baseUrl, fetchImpl: config.fetchImpl })
+  if (config.provider === 'tavily') {
+    return createTavilyProvider({ apiKey: config.apiKey ?? '', timeoutMs: config.timeoutMs, baseUrl: config.baseUrl, fetchImpl: config.fetchImpl })
+  }
+  return createBraveProvider({ apiKey: config.apiKey ?? '', timeoutMs: config.timeoutMs, baseUrl: config.baseUrl, fetchImpl: config.fetchImpl })
 }
 
 export function isSupportedSearchProvider(v: unknown): v is SupportedSearchProvider {

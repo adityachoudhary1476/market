@@ -20,13 +20,12 @@
 //   - One transient retry per request; then the mapped error is returned.
 // ---------------------------------------------------------------------------
 
-import type { SearchGatewayError, SearchGatewayErrorCode, SearchGatewayResponseBody } from '../types'
-import type { WebSearchProvider } from '../types'
+import type { SearchGatewayError, SearchGatewayErrorCode, SearchGatewayResponseBody, SearchProviderResult, WebSearchProvider, SearchProviderId } from '../types'
 import { validateWebSearchQuery, WEBSEARCH_LIMITS, searchCacheKey } from '../limits'
 import { finalizeSearchResults } from '../normalize'
 import { createSearchCache, type SearchCache } from '../cache'
 import { SearchProviderError } from '../providers/errors'
-import { createWebSearchProvider } from '../providers'
+import { createWebSearchProvider, createRssProvider } from '../providers'
 import type { SearchEnv } from './env'
 import { logAgent } from '../../agent/logger'
 
@@ -123,41 +122,86 @@ export async function handleSearchRequest(body: unknown, deps: SearchGatewayDeps
     }
   }
 
-  const provider = deps.provider ?? createWebSearchProvider({
-    provider: deps.searchEnv.provider,
-    apiKey: deps.searchEnv.apiKey,
-    timeoutMs: deps.searchEnv.timeoutMs,
-    ...(deps.searchEnv.baseUrl !== undefined ? { baseUrl: deps.searchEnv.baseUrl } : {}),
+  const searchEnv = deps.searchEnv
+  const configuredProvider = deps.provider ?? createWebSearchProvider({
+    provider: searchEnv.provider,
+    apiKey: searchEnv.apiKey,
+    timeoutMs: searchEnv.timeoutMs,
+    ...(searchEnv.baseUrl !== undefined ? { baseUrl: searchEnv.baseUrl } : {}),
   })
-  const cache = deps.cache ?? defaultCache(deps.searchEnv)
-  const cacheKey = searchCacheKey(query, provider.name)
+  const cache = deps.cache ?? defaultCache(searchEnv)
+  const cacheKey = searchCacheKey(query, configuredProvider.name)
 
   const cached = cache.get(cacheKey)
   if (cached) {
-    logAgent({ kind: 'search-response', provider: provider.name, cached: true, results: cached.results.length })
+    logAgent({ kind: 'search-response', provider: configuredProvider.name, cached: true, results: cached.results.length })
     return { status: 200, body: { ...cached, cached: true } }
   }
 
-  let attempt = 0
-  for (;;) {
+  // Phase 2 — RSS-first provider fallback: try the free RSS/Atom provider
+  // before falling back to Tavily/Brave. RSS is key-less and free; it never
+  // blocks the configured provider. If RSS returns usable results they are
+  // used; otherwise the configured provider is attempted.
+  const rssProvider: WebSearchProvider = createRssProvider({
+    feedUrls: searchEnv.baseUrl?.split(',').map((u) => u.trim()).filter(Boolean),
+    timeoutMs: searchEnv.timeoutMs,
+  })
+
+  async function tryRss(): Promise<SearchProviderResult | null> {
     try {
       const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-        ? AbortSignal.timeout(deps.searchEnv.timeoutMs)
+        ? AbortSignal.timeout(searchEnv.timeoutMs)
         : undefined
-      const raw = await provider.search({
+      const raw = await rssProvider.search({
         query: query.query,
         maxResults: query.maxResults ?? WEBSEARCH_LIMITS.defaultResults,
         ...(query.recencyDays !== undefined ? { recencyDays: query.recencyDays } : {}),
         ...(query.domainFilter !== undefined ? { domainFilter: query.domainFilter } : {}),
         ...(signal ? { signal } : {}),
       })
+      if (raw.results.length > 0) {
+        logAgent({ kind: 'search-response', provider: 'rss', results: raw.results.length })
+        return raw
+      }
+    } catch {
+      // RSS feed unavailable — fall back to the configured provider.
+    }
+    return null
+  }
+
+  let attempt = 0
+  for (;;) {
+    try {
+      const rssResult = await tryRss()
+      let raw: SearchProviderResult | null = rssResult
+      let providerId: SearchProviderId = 'rss'
+
+      if (!rssResult) {
+        const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          ? AbortSignal.timeout(searchEnv.timeoutMs)
+          : undefined
+        raw = await configuredProvider.search({
+          query: query.query,
+          maxResults: query.maxResults ?? WEBSEARCH_LIMITS.defaultResults,
+          ...(query.recencyDays !== undefined ? { recencyDays: query.recencyDays } : {}),
+          ...(query.domainFilter !== undefined ? { domainFilter: query.domainFilter } : {}),
+          ...(signal ? { signal } : {}),
+        })
+        providerId = configuredProvider.name as SearchProviderId
+        logAgent({ kind: 'search-response', provider: providerId, results: raw.results.length })
+      }
+
+      if (!raw) {
+        return { status: 503, body: errorBody('provider-error', 'All search providers returned no results.') }
+      }
+
       const finalized = finalizeSearchResults(raw.results, {
-        provider: provider.name,
+        provider: providerId,
         maxResults: query.maxResults ?? WEBSEARCH_LIMITS.defaultResults,
       })
       const response = {
         query: query.query,
-        provider: provider.name,
+        provider: providerId,
         results: finalized.results,
         totalResults: finalized.totalResults,
         truncated: finalized.truncated,
@@ -166,14 +210,14 @@ export async function handleSearchRequest(body: unknown, deps: SearchGatewayDeps
       if (finalized.dropped > 0 || finalized.deduplicated > 0) {
         logAgent({
           kind: 'search-response',
-          provider: provider.name,
+          provider: providerId,
           results: finalized.results.length,
           dropped: finalized.dropped,
           deduplicated: finalized.deduplicated,
           truncated: finalized.truncated,
         })
       } else {
-        logAgent({ kind: 'search-response', provider: provider.name, results: finalized.results.length })
+        logAgent({ kind: 'search-response', provider: providerId, results: finalized.results.length })
       }
       cache.set(cacheKey, response)
       return { status: 200, body: response }

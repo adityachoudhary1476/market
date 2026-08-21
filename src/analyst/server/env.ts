@@ -35,6 +35,8 @@ export interface ServerEnv {
   rateLimitWindowMs: number
   /** CORS origin for the browser boundary ("*" or a single origin). */
   corsOrigin: string
+  /** Optional free EIA key; absent means the EIA route reports unavailable. */
+  eiaApiKey?: string
 }
 
 const DEFAULTS = {
@@ -81,5 +83,6 @@ export function resolveServerEnv(env: Record<string, string | undefined>): Serve
     rateLimitMax: parsePositiveInt(env.FINOVA_GATEWAY_RATE_LIMIT, DEFAULTS.rateLimitMax, 0, 10_000),
     rateLimitWindowMs: parsePositiveInt(env.FINOVA_GATEWAY_RATE_LIMIT_WINDOW_MS, DEFAULTS.rateLimitWindowMs, 1_000, 3_600_000),
     corsOrigin: (env.FINOVA_GATEWAY_CORS_ORIGIN ?? DEFAULTS.corsOrigin).trim() || DEFAULTS.corsOrigin,
+    ...((env.FINOVA_EIA_API_KEY ?? '').trim() ? { eiaApiKey: (env.FINOVA_EIA_API_KEY ?? '').trim() } : {}),
   }
 }

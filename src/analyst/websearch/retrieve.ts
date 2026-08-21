@@ -33,7 +33,22 @@ export type SearchToolId = 'searchWeb' | 'searchNews'
  * reusable evidence regardless of which provider produced it.
  */
 export function searchSessionCacheKey(query: WebSearchQuery, tool: SearchToolId): string {
-  return `${tool}|${normalizeQueryKey(query.query)}|${query.maxResults ?? WEBSEARCH_LIMITS.defaultResults}|${query.recencyDays ?? ''}|${query.domainFilter ?? ''}`
+  return `${tool}|${semanticQueryKey(query.query)}|${query.maxResults ?? WEBSEARCH_LIMITS.defaultResults}|${query.recencyDays ?? ''}|${query.domainFilter ?? ''}`
+}
+
+/**
+ * Small deterministic equivalence layer for conversational rephrasing. It is
+ * deliberately conservative: only common driver/status verbs are folded;
+ * subject words and meaningful qualifiers remain part of the key.
+ */
+export function semanticQueryKey(query: string): string {
+  const normalized = normalizeQueryKey(query)
+    .replace(/\b(rising|rise|up|moving|move|driving|driver|happening|going on)\b/g, 'move')
+    .replace(/\b(why|what is|what's|what are|is|are|actually|really|now|right now|today)\b/g, ' ')
+    .replace(/[?!.:,;]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return normalized.split(' ').filter(Boolean).sort().join(' ')
 }
 
 export type RetrievalEvent =

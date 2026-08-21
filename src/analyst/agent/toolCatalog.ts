@@ -42,15 +42,23 @@ export interface BuildCatalogOptions {
    * tool selection stays with the orchestrator).
    */
   includeWebSearch?: boolean
+  includeSearchWeb?: boolean
+  includeSearchNews?: boolean
 }
 
 /** Build the LLM-facing tool list for one session. */
 export function buildToolCatalog(registry: AnalystToolRegistry, options: BuildCatalogOptions = {}): CatalogEntry[] {
   const includeWebSearch = options.includeWebSearch ?? true
   const webTools = new Set(['searchWeb', 'searchNews'])
+  const includeSearchWeb = options.includeSearchWeb ?? includeWebSearch
+  const includeSearchNews = options.includeSearchNews ?? includeWebSearch
   return registry
     .definitions()
-    .filter((def) => includeWebSearch || !webTools.has(def.name))
+    .filter((def) => {
+      if (def.name === 'searchWeb') return includeSearchWeb
+      if (def.name === 'searchNews') return includeSearchNews
+      return includeWebSearch || !webTools.has(def.name)
+    })
     .map((def) => {
       const note = AVAILABILITY_NOTES[def.name]
       return {

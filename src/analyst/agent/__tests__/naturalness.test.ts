@@ -30,6 +30,7 @@ import { runAgentSession } from '../orchestrator'
 import { createRuleMockProvider, toolCall } from '../mockProvider'
 import { describeUniverse } from '../entityResolution'
 import { makeToolResult } from '../../conversation/__tests__/helpers'
+import { applyOutputHygiene } from '../responseIntelligence'
 
 const NOW = 1_720_000_000_000
 const REGISTRY = createDefaultAnalystToolRegistry()
@@ -190,8 +191,8 @@ test('N19 — the memory fallback reads naturally and keeps its honesty guarante
     { response: { id: 'r', intent: 'explain', title: 'TCS read', generatedAt: new Date(NOW).toISOString() }, evidence: [{ result: makeToolResult({ data: { rsi: 61 }, metadata: { tool: 'getTechnicalAnalysis', timestamp: new Date(NOW).toISOString(), source: 'technical-engine', available: true, warnings: [] } }), entity: 'TCS' }], sources: [], now: NOW },
   )
   const r = await wrapper.generate({ text: 'What does the data support?', context: CONTEXT as never, history: [] })
-  assert.ok(r.summary?.includes('evidence already gathered'), 'labels the answer as session evidence')
-  assert.ok(r.summary?.includes("couldn't run the tools"), 'reads naturally')
+  assert.ok(r.answer, 'memory fallback has a concise conversational answer')
+  assert.ok(r.answer?.startsWith('The short version is'), 'reads naturally')
   assert.ok(!r.summary?.includes('The analyst tools could not run'), 'no robotic machinery phrasing')
   assert.ok(JSON.stringify(r).includes('No Finova tool in this session supports'), 'honesty limit kept')
 })
@@ -230,6 +231,37 @@ test('N22 — depth is always one of brief/standard/deep', () => {
     const d = understandTurn(s).depth as UnderstandingDepth
     assert.ok(['brief', 'standard', 'deep'].includes(d), `unexpected depth for "${s}"`)
   }
+})
+
+test('N22A — brief normalization removes report fields and bounds support', () => {
+  const response = applyOutputHygiene({
+    id: 'r', intent: 'explain', title: 'Oil', summary: 'Oil is mildly bullish.',
+    sections: [{ heading: 'Evidence', body: 'Supply is tighter.' }],
+    findings: [{ kind: 'fact', title: 'Risk', detail: 'Demand is weaker.' }],
+    recommendations: ['Wait for confirmation.'],
+    followUps: ['What about demand?', 'What about inventories?'],
+    generatedAt: new Date().toISOString(),
+  }, { depth: 'brief' })
+  assert.equal(response.answer, 'Oil is mildly bullish.')
+  assert.equal(response.sections, undefined)
+  assert.equal(response.findings, undefined)
+  assert.equal(response.recommendations, undefined)
+  assert.ok((response.followUps?.length ?? 0) <= 1, 'at most one follow-up for brief depth')
+  assert.ok((response.supportingPoints ?? []).length <= 2)
+})
+
+test('N22B — deep normalization preserves genuinely structured analysis', () => {
+  const response = applyOutputHygiene({
+    id: 'r', intent: 'compare', title: 'Oil vs gold', answer: 'Both are mixed.',
+    sections: [{ heading: 'Comparison', body: 'The drivers differ.' }],
+    generatedAt: new Date().toISOString(),
+  }, { depth: 'deep' })
+  assert.equal(response.sections?.length, 1)
+})
+
+test('N22C — an explicit deep-analysis request is deep, not brief', () => {
+  const u = understandTurn('Give me a deep analysis of oil.')
+  assert.equal(u.depth, 'deep')
 })
 
 // --- Phase 3N.1 §25 — Natural Analyst V2: answer compression, natural

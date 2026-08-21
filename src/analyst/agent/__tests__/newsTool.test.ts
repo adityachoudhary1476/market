@@ -109,8 +109,9 @@ test('news: searchNews is only offered when the session has a transport', async 
     seenTools = (request.tools ?? []).map((t) => t.name)
     return { kind: 'final', content: validJson() }
   })
-  await runAgentSession({ text: 'hi', context: withSearch.context }, { ...withSearch, provider: provider2 })
-  assert.ok(seenTools.includes('searchNews'), 'transport present -> searchNews offered')
+  await runAgentSession({ text: 'What is the latest news on RBI rates?', context: withSearch.context }, { ...withSearch, provider: provider2 })
+  assert.ok(seenTools.includes('searchNews'), 'news intent -> searchNews offered')
+  assert.ok(!seenTools.includes('searchWeb'), 'news intent does not expose generic web search')
 })
 
 test('news: its own session budget (4) is enforced and reported honestly', async () => {
@@ -134,7 +135,7 @@ test('news: its own session budget (4) is enforced and reported honestly', async
   assert.equal(output.response.sources!.length, 4)
 })
 
-test('news: the news budget is separate from the web-search budget', async () => {
+test('news: one shared live-search budget covers news and web retrieval', async () => {
   let calls = 0
   const deps = makeDeps(async () => {
     calls += 1
@@ -149,7 +150,7 @@ test('news: the news budget is separate from the web-search budget', async () =>
     { kind: 'final', content: validJson() },
   ])
   const output = await runAgentSession({ text: 'everything', context: deps.context }, { ...deps, provider })
-  assert.equal(calls, 5, '4 news + 4 web budgets are independent')
+  assert.equal(calls, 4, 'news and web calls share the four-search live budget')
   const newsCalls = output.trace.filter((t) => t.kind === 'tool' && t.tool === 'searchNews').length
   const webCalls = output.trace.filter((t) => t.kind === 'tool' && t.tool === 'searchWeb').length
   assert.equal(newsCalls, 3)

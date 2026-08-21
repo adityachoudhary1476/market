@@ -37,6 +37,20 @@ test('accepts a fully valid structured response', () => {
   assert.ok(r.id.startsWith('ai-'))
 })
 
+test('accepts the minimal conversational answer contract', () => {
+  const result = validateStructuredResponse({
+    intent: 'explain',
+    title: 'Oil outlook',
+    answer: 'Oil is mildly bullish, but the setup is not clean.',
+    supportingPoints: ['Supply concerns support prices.', 'Demand remains a counterweight.'],
+    followUp: 'The main risk is a faster supply recovery.',
+  })
+  assert.equal(result.ok, true)
+  assert.equal(result.response!.answer, 'Oil is mildly bullish, but the setup is not clean.')
+  assert.equal(result.response!.supportingPoints!.length, 2)
+  assert.equal(result.response!.followUp, 'The main risk is a faster supply recovery.')
+})
+
 test('rejects non-object responses', () => {
   for (const bad of [null, 42, 'text', [], true]) {
     const result = validateStructuredResponse(bad)

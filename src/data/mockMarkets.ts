@@ -20,6 +20,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 24400, 55, 14),
     region: 'india',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'sensex',
@@ -33,6 +34,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 80200, 170, 40),
     region: 'india',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'bank-nifty',
@@ -46,6 +48,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 52100, 130, 32),
     region: 'india',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'nifty-it',
@@ -59,6 +62,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 40900, 110, 16),
     region: 'india',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'nasdaq',
@@ -72,6 +76,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 18150, 60, 12),
     region: 'us',
     marketState: 'closed',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'spx',
@@ -85,6 +90,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 5560, 16, 2.2),
     region: 'us',
     marketState: 'closed',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'dow',
@@ -98,6 +104,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 41050, 70, -3),
     region: 'us',
     marketState: 'closed',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'nikkei',
@@ -111,6 +118,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 38900, 150, -12),
     region: 'asia',
     marketState: 'closed',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'hsi',
@@ -124,6 +132,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 17380, 95, 9),
     region: 'asia',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'dax',
@@ -137,6 +146,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 18540, 42, 4),
     region: 'europe',
     marketState: 'closed',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'gold',
@@ -150,6 +160,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 2498, 7, 0.6),
     region: 'commodity',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'usdinr',
@@ -163,6 +174,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 84.1, 0.08, -0.006),
     region: 'fx',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'crude',
@@ -176,6 +188,7 @@ export const mockIndices: MarketIndex[] = [
     spark: generateSpark(28, 75.9, 0.4, 0.04),
     region: 'commodity',
     marketState: 'open',
+    dataMode: 'synthetic-demo',
   },
 ]
 
@@ -192,11 +205,41 @@ export const globalIndices = mockIndices.filter((i) =>
 
 export const macroIndicators: MacroIndicator[] = [
   {
+    id: 'repo',
+    label: 'India Repo Rate',
+    value: '6.50%',
+    changePct: 0,
+    trend: trendFromChange(0),
+    unit: '%',
+    dataMode: 'synthetic-demo',
+  },
+  {
+    id: 'indiavix',
+    label: 'India VIX',
+    value: '13.84',
+    changePct: -6.1,
+    trend: trendFromChange(-6.1),
+    unit: 'pts',
+    invertColor: true,
+    dataMode: 'synthetic-demo',
+  },
+  {
+    id: 'in10y',
+    label: 'India 10Y Yield',
+    value: '6.94%',
+    changePct: -0.43,
+    trend: trendFromChange(-0.43),
+    unit: '%',
+    dataMode: 'synthetic-demo',
+  },
+  {
     id: 'usdinr',
     label: 'USD / INR',
     value: '83.92',
     changePct: -0.18,
     trend: trendFromChange(-0.18),
+    unit: '₹',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'crude',
@@ -204,6 +247,8 @@ export const macroIndicators: MacroIndicator[] = [
     value: '$76.84',
     changePct: 0.81,
     trend: trendFromChange(0.81),
+    unit: '$',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'gold',
@@ -211,6 +256,8 @@ export const macroIndicators: MacroIndicator[] = [
     value: '$2,512',
     changePct: 0.22,
     trend: trendFromChange(0.22),
+    unit: '$',
+    dataMode: 'synthetic-demo',
   },
   {
     id: 'us10y',
@@ -218,6 +265,8 @@ export const macroIndicators: MacroIndicator[] = [
     value: '3.92%',
     changePct: -1.1,
     trend: trendFromChange(-1.1),
+    unit: '%',
+    dataMode: 'synthetic-demo',
   },
 ]
 
@@ -227,4 +276,5 @@ export const marketBreadth: MarketBreadth = {
   unchanged: 138,
   newHighs: 126,
   newLows: 41,
+  dataMode: 'synthetic-demo',
 }

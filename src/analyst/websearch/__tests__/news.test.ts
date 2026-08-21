@@ -114,6 +114,16 @@ test('news: identical stories merge and count corroboration', () => {
   assert.equal(items[0].corroboratedBy, 2)
 })
 
+test('news: common same-day catalyst paraphrases merge', () => {
+  const day = iso(1)
+  const { items } = clusterNewsStories([
+    item('https://reuters.com/1', 'Oil rises on supply concerns', day),
+    item('https://cnbc.com/2', 'Crude climbs amid supply fears', day),
+  ])
+  assert.equal(items.length, 1)
+  assert.equal(items[0].corroboratedBy, 2)
+})
+
 test('news: distinct stories stay separate', () => {
   const { items, clusters } = clusterNewsStories([item('https://reuters.com/a', 'RBI holds rates steady'), item('https://reuters.com/b', 'Oil climbs on supply concerns')])
   assert.equal(items.length, 2)
@@ -173,6 +183,15 @@ test('news: processNewsResults produces honest, bounded evidence', () => {
   assert.equal(rbi!.freshness, 'breaking', 'the freshest report of the story drives its tier')
   assert.equal(rbi!.sourceTier, 'major')
   assert.ok(rbi!.url.startsWith('https://'), 'items keep validated URLs')
+})
+
+test('news: dated stories outside the requested window are excluded', () => {
+  const evidence = processNewsResults(
+    [item('https://reuters.com/fresh', 'RBI holds rates steady', iso(2)), item('https://cnbc.com/old', 'RBI holds rates steady', iso(10))],
+    { subject: 'RBI interest rate', maxAgeDays: 7, now: NOW },
+  )
+  assert.equal(evidence.items.length, 1)
+  assert.equal(evidence.items[0].url, 'https://reuters.com/fresh')
 })
 
 test('news: processNewsResults bounds stories, not raw articles', () => {

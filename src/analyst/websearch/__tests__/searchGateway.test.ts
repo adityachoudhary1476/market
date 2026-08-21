@@ -206,3 +206,57 @@ test('gateway: the API key is never echoed in any body', async () => {
   const serialized = JSON.stringify(result.body)
   assert.ok(!serialized.includes('tvly-test-secret'), 'server secret never reaches the client')
 })
+
+// --- Phase 2 — RSS-first provider fallback ----------------------------------
+
+test('gateway: RSS results are returned when RSS succeeds first', async () => {
+  const result = await handleSearchRequest(validBody(), {
+    searchEnv: searchEnv(),
+    provider: {
+      name: 'rss',
+      async search() {
+        return { results: [{ title: 'RSS Story', url: 'https://rss.example.com/1', snippet: 'From RSS.', publishedAt: '2026-01-01' }] }
+      },
+    },
+    cache: createSearchCache(),
+  })
+  assert.equal(result.status, 200)
+  if ('error' in result.body) return
+  assert.equal(result.body.provider, 'rss')
+  assert.equal(result.body.results.length, 1)
+  assert.equal(result.body.results[0].title, 'RSS Story')
+})
+
+test('gateway: configured provider is used when RSS returns no results', async () => {
+  const result = await handleSearchRequest(validBody(), {
+    searchEnv: searchEnv(),
+    provider: {
+      name: 'tavily',
+      async search() {
+        return { results: [{ title: 'Tavily Story', url: 'https://tavily.example.com/1', snippet: 'From Tavily.', publishedAt: '2026-01-01' }] }
+      },
+    },
+    cache: createSearchCache(),
+  })
+  assert.equal(result.status, 200)
+  if ('error' in result.body) return
+  assert.equal(result.body.provider, 'tavily')
+  assert.equal(result.body.results.length, 1)
+  assert.equal(result.body.results[0].title, 'Tavily Story')
+})
+
+test('gateway: configured provider error is surfaced when RSS also fails', async () => {
+  const result = await handleSearchRequest(validBody(), {
+    searchEnv: searchEnv(),
+    provider: {
+      name: 'tavily',
+      async search() {
+        throw new SearchProviderError('rate-limit', 'slow down')
+      },
+    },
+    cache: createSearchCache(),
+  })
+  assert.equal(result.status, 429)
+  assert.ok('error' in result.body)
+  assert.equal(result.body.error.code, 'rate-limit')
+})

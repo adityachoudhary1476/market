@@ -52,11 +52,15 @@ export type ToolSource =
   /** Phase 3C.1 — normalized, validated web search evidence. */
   | 'web-search'
 
+export type ToolDataMode = 'live' | 'delayed' | 'daily' | 'cached-live' | 'cached-delayed' | 'synthetic-demo' | 'unavailable'
+
 export interface ToolMetadata {
   tool: string
   /** ISO timestamp the tool ran (from the execution context). */
   timestamp: string
   source: ToolSource
+  /** Explicit provenance status; demo data must never be described as live. */
+  dataMode?: ToolDataMode
   /** True when the underlying data/engine could produce evidence. */
   available: boolean
   warnings: string[]
@@ -136,4 +140,8 @@ export interface ToolContext {
   /** Fixed wall-clock reference so tools are deterministic. */
   now: number
   data: ToolDataSources
+  /** Optional async refresh performed before an analyst turn. */
+  refresh?: () => Promise<void>
+  /** Provenance of the current normalized dataset. */
+  dataMode?: ToolDataMode
 }

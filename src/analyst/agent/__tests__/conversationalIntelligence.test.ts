@@ -241,3 +241,14 @@ test('CI10 — injected tool instructions in article text stay data, never instr
   assert.ok(!requestText.includes('magic-word-xyz'), 'hostile metadata is not echoed into prompts')
   assert.equal(output.response.intent, 'explain', 'the model answered as asked')
 })
+
+test('CI11 — gold switch then comparison resolves the referenced gold topic', () => {
+  const conversation = createConversationSession({}, NOW)
+  const first = conversation.resolve('Is oil bullish today?', NOW)
+  conversation.update(first, { response: JSON.parse(json('explain', 'Oil', 'Oil is leaning bullish.')), evidence: [], sources: [], now: NOW })
+  const second = conversation.resolve('What about gold?', NOW)
+  conversation.update(second, { response: JSON.parse(json('status', 'Gold', 'Gold is mixed.')), evidence: [], sources: [], now: NOW })
+  const comparison = conversation.resolve('Compare that with oil.', NOW)
+  assert.deepEqual(comparison.interpretation.comparison?.entities, ['gold', 'brent'])
+  assert.equal(comparison.interpretation.entities[0]?.id, 'brent')
+})

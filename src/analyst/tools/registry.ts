@@ -67,6 +67,7 @@ export class AnalystToolRegistry {
         result.metadata.durationMs = Date.now() - started
         result.metadata.timestamp = new Date(context.now).toISOString()
       }
+      if (context.dataMode) result.metadata.dataMode = context.dataMode
       return result
     } catch (thrown) {
       return internalErrorResult(name, 'market-data', thrown, {

@@ -15,7 +15,7 @@ import { marketBreadth } from '../../data/mockMarkets'
 import { terminalMacro } from '../../data/mockMacro'
 import { globalMarkets } from '../../data/mockGlobalMarkets'
 import type { IndexSeries, MarketBreadth, Timeframe } from '../../types'
-import type { MarketDataset, ToolContext, ToolDataSources } from './types'
+import type { MarketDataset, ToolContext, ToolDataSources, ToolDataMode } from './types'
 import { validateHistory, localHistoricalDataProvider } from '../technical/historical'
 import type { HistoricalValidationContext } from '../technical/historical'
 import { buildTechnicalContext, candlesFromChartPoints, isIntradayTimestamps } from '../technical'
@@ -37,12 +37,31 @@ function marketDataset(): MarketDataset {
  * demo data. `now` fixes the wall clock for the whole turn so every tool's
  * metadata timestamp is identical and repeatable.
  */
-export function createDefaultToolContext(now: number = Date.now()): ToolContext {
+export interface DefaultToolContextOptions {
+  marketDataEndpoint?: string
+}
+
+function browserMarketDataEndpoint(): string | undefined {
+  try {
+    const api = (import.meta.env as Record<string, string | undefined>).FINOVA_ANALYST_API_URL
+    if (!api) return undefined
+    const url = new URL(api)
+    url.pathname = url.pathname.replace(/\/analyze\/?$/, '/market-data')
+    if (!url.pathname.endsWith('/market-data')) url.pathname = '/api/market-data'
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
+export function createDefaultToolContext(now: number = Date.now(), options: DefaultToolContextOptions = {}): ToolContext {
   const technicalCache = new Map<string, StructuredTechnicalContext>()
   const historicalCache = new Map<string, HistoricalValidationContext>()
 
+  let dataset = marketDataset()
+  let dataMode: ToolDataMode = 'synthetic-demo'
   const data: ToolDataSources = {
-    market: marketDataset,
+    market: () => dataset,
 
     series(instrument: string, appTimeframe: Timeframe): IndexSeries {
       // getIndexSeries() falls back to nifty-50 for unknown ids — the tool
@@ -108,7 +127,59 @@ export function createDefaultToolContext(now: number = Date.now()): ToolContext 
     },
   }
 
-  return { now, data }
+  const endpoint = options.marketDataEndpoint ?? browserMarketDataEndpoint()
+  const refresh = endpoint
+    ? async (): Promise<void> => {
+        try {
+          const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+          if (!response.ok) return
+          const body = (await response.json()) as { instruments?: Record<string, { value: number; timestamp: string; dataMode?: ToolDataMode; change?: number; changePct?: number }> }
+          const instruments = body.instruments ?? {}
+          const macro = dataset.macro.map((item) => {
+            const key = item.id === 'brent' ? 'brent' : item.id === 'gold' ? 'gold' : item.id === 'wti' ? 'wti' : item.id === 'bitcoin' ? 'btc' : item.id === 'ethereum' ? 'eth' : item.id === 'eurusd' ? 'eurusd' : item.id === 'gbpusd' ? 'gbpusd' : item.id === 'usdjpy' ? 'usdjpy' : item.id === 'usdinr' ? 'usdinr' : null
+            const point = key ? instruments[key] : undefined
+            if (!point || !Number.isFinite(point.value)) return item
+            const updated = { ...item, value: String(point.value), changePct: point.changePct ?? 0, change: point.change } as Record<string, unknown>
+            if (point.dataMode) updated.dataMode = point.dataMode
+            return updated as unknown as typeof item
+          })
+          const extra = Object.entries(instruments)
+            .filter(([key]) => !macro.some((item) => item.id === key))
+            .map(([key, point]) => {
+              const labels: Record<string, string> = {
+                nifty: 'NIFTY 50',
+                sensex: 'SENSEX',
+                banknifty: 'BANK NIFTY',
+                niftyit: 'NIFTY IT',
+              }
+              const units: Record<string, string> = {
+                nifty: 'pts',
+                sensex: 'pts',
+                banknifty: 'pts',
+                niftyit: 'pts',
+              }
+              return {
+                id: key,
+                label: labels[key] ?? key.toUpperCase(),
+                value: String(point.value),
+                changePct: point.changePct ?? 0,
+                change: point.change,
+                trend: (point.changePct !== undefined ? (point.changePct > 0 ? 'up' : point.changePct < 0 ? 'down' : 'flat') : 'flat') as 'up' | 'down' | 'flat',
+                unit: units[key] ?? 'pts',
+                dataMode: point.dataMode ?? 'delayed',
+              }
+            })
+          if (Object.keys(instruments).length > 0) {
+            dataset = { ...dataset, macro: [...macro, ...extra] }
+            dataMode = 'daily'
+          }
+        } catch {
+          // Keep the explicit synthetic dataset when the optional free source is unavailable.
+        }
+      }
+    : undefined
+
+  return { now, data, ...(refresh ? { refresh } : {}), get dataMode() { return dataMode } }
 }
 
 export { TERMINAL_INDICES }

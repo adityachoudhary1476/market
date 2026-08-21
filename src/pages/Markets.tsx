@@ -12,10 +12,9 @@ import { GlobalMarketGrid } from '@/components/markets/GlobalMarketGrid'
 import { MacroGrid } from '@/components/markets/MacroGrid'
 import { MarketInsight } from '@/components/markets/MarketInsight'
 import { SectionCard } from '@/components/markets/SectionCard'
-import { useMarketClock } from '@/hooks/useMarketClock'
+import { useMarketIndices } from '@/hooks/useMarketIndices'
 import { useReveal } from '@/hooks/useReveal'
 import { usePageMeta } from '@/hooks/usePageMeta'
-import { terminalIndices } from '@/data/mockTerminalIndices'
 import { marketStatus, marketSnapshot, marketInsight } from '@/data/mockTerminal'
 import { marketBreadth } from '@/data/mockMarkets'
 import { topGainers, topLosers, mostActive } from '@/data/mockTerminalStocks'
@@ -28,20 +27,7 @@ export default function Markets() {
     'Finova Markets — Indian Market Intelligence',
     'Track Indian markets, indices, sectors, market breadth, global cues and market intelligence with Finova.',
   )
-  const { lastUpdatedLabel, refreshing, refresh, nonce } = useMarketClock()
-
-  // Refresh triggers a tiny, deterministic jitter so values visibly "refresh"
-  // without fabricating live data. Components consume the same typed data.
-  const jitter = useMemo(() => 1 + (nonce > 0 ? (nonce % 3) * 0.0006 - 0.0006 : 0), [nonce])
-  const indices = useMemo(
-    () =>
-      terminalIndices.map((idx) => ({
-        ...idx,
-        value: Number((idx.value * jitter).toFixed(2)),
-        change: Number((idx.change * jitter).toFixed(2)),
-      })),
-    [jitter],
-  )
+  const { indices, lastUpdatedLabel, refreshing, refresh, error } = useMarketIndices()
 
   const gainers = useMemo(() => topGainers(8), [])
   const losers = useMemo(() => topLosers(8), [])
@@ -78,7 +64,7 @@ export default function Markets() {
         {/* Main chart + snapshot */}
         <section className="reveal mt-6 grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <MarketChartPanel indices={indices} nonce={nonce} />
+            <MarketChartPanel indices={indices} nonce={0} />
           </div>
           <MarketSnapshot snapshot={marketSnapshot} />
         </section>
@@ -146,10 +132,18 @@ export default function Markets() {
 
         {/* Trust line */}
         <p className="mx-auto mt-10 max-w-3xl text-center text-xs leading-relaxed text-stone-400">
-          Market data shown in this demo is illustrative and may not reflect
-          live prices. Finova provides market information and analysis for
-          informational and educational purposes only. It is not investment
-          advice.
+          {error ? (
+            <>
+              Live market data is currently unavailable ({error}). Showing illustrative
+              values.
+            </>
+          ) : (
+            <>
+              Market data shown is delayed (Yahoo Finance) and refreshes automatically.
+              Finova provides market information and analysis for informational and
+              educational purposes only. It is not investment advice.
+            </>
+          )}
         </p>
       </div>
     </div>

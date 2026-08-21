@@ -5,7 +5,7 @@
 // reports the same metadata shape (provenance, availability, warnings).
 // ---------------------------------------------------------------------------
 
-import type { ToolError, ToolMetadata, ToolResult, ToolSource } from './types'
+import type { ToolError, ToolMetadata, ToolResult, ToolSource, ToolDataMode } from './types'
 import { ToolError as ToolErrorClass } from './errors'
 
 export interface ResultOptions {
@@ -13,6 +13,7 @@ export interface ResultOptions {
   warnings?: string[]
   /** Override the metadata timestamp (defaults to the context `now`). */
   now?: number
+  dataMode?: ToolDataMode
 }
 
 export function resultMetadata(
@@ -24,6 +25,7 @@ export function resultMetadata(
     tool,
     timestamp: new Date(options.now ?? Date.now()).toISOString(),
     source,
+    dataMode: options.dataMode ?? (source === 'web-search' ? 'live' : 'synthetic-demo'),
     available: options.available ?? false,
     warnings: options.warnings ?? [],
   }

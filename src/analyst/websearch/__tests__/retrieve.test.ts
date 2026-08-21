@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createSearchCache } from '../cache'
 import { normalizeQueryKey, searchCacheKey } from '../limits'
-import { retrieveEvidence, searchSessionCacheKey } from '../retrieve'
+import { retrieveEvidence, searchSessionCacheKey, semanticQueryKey } from '../retrieve'
 import type { SearchToolId, RetrievalEvent } from '../retrieve'
 import type { WebSearchQuery, WebSearchResponse, WebSearchTransport } from '../types'
 
@@ -126,4 +126,8 @@ test('searchSessionCacheKey is stable for the tool type union', () => {
   const tools: SearchToolId[] = ['searchWeb', 'searchNews']
   const keys = tools.map((t) => searchSessionCacheKey({ query: 'gold' }, t))
   assert.equal(new Set(keys).size, 2)
+})
+
+test('semanticQueryKey folds common driver rephrasings', () => {
+  assert.equal(semanticQueryKey('Why is oil rising right now?'), semanticQueryKey('What is driving oil today?'))
 })

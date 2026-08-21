@@ -132,6 +132,8 @@ export function isValidWebSearchResult(v: unknown): v is WebSearchResult {
     const parsed = new URL(v.url)
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
     if (!parsed.hostname) return false
+    const hostname = parsed.hostname.replace(/^www\./, '').toLowerCase()
+    if ((v.source as string).toLowerCase().replace(/^www\./, '') !== hostname) return false
   } catch {
     return false
   }
@@ -139,7 +141,7 @@ export function isValidWebSearchResult(v: unknown): v is WebSearchResult {
   if (typeof v.source !== 'string' || v.source.length === 0 || v.source.length > 128) return false
   if (v.publishedAt !== null && typeof v.publishedAt !== 'string') return false
   if (typeof v.publishedAt === 'string' && !Number.isFinite(Date.parse(v.publishedAt))) return false
-  if (v.provider !== 'tavily' && v.provider !== 'brave') return false
+  if (v.provider !== 'tavily' && v.provider !== 'brave' && v.provider !== 'rss') return false
   return true
 }
 

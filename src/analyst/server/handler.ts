@@ -22,5 +22,5 @@ import { routeRequest } from './http'
 export default async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const env = resolveServerEnv(process.env)
   const searchEnv = resolveSearchEnv(process.env)
-  await routeRequest(req, res, { env, searchEnv })
+  await routeRequest(req, res, { env, searchEnv, marketDataApiKey: process.env.FINOVA_EIA_API_KEY?.trim() || null })
 }

@@ -18,7 +18,7 @@
 //   - Snippets are the provider's own text, truncated to the approved limit.
 // ---------------------------------------------------------------------------
 
-export type SearchProviderId = 'tavily' | 'brave'
+export type SearchProviderId = 'tavily' | 'brave' | 'rss'
 
 /** The validated, bounded query the LLM (via searchWeb) may send. */
 export interface WebSearchQuery {

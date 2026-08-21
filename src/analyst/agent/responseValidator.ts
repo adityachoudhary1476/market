@@ -91,6 +91,11 @@ export function validateStructuredResponse(raw: unknown): ValidationResult {
   }
 
   // summary
+  const answer = cleanString(raw.answer)
+  const supportingPoints = Array.isArray(raw.supportingPoints)
+    ? raw.supportingPoints.map((p) => cleanString(p)).filter((p): p is string => p !== undefined).slice(0, 3)
+    : undefined
+  const followUp = cleanString(raw.followUp, 300)
   const summary = cleanString(raw.summary)
 
   // metrics
@@ -277,11 +282,11 @@ export function validateStructuredResponse(raw: unknown): ValidationResult {
   const partial = raw.partial === true
 
   // A response with no substance is useless.
-  const hasSubstance = Boolean(sections?.length || findings?.length || recommendations?.length || table || plan || chart)
+  const hasSubstance = Boolean(answer || summary || supportingPoints?.length || sections?.length || findings?.length || recommendations?.length || table || plan || chart)
 
   if (!title || !intent || errors.length > 0 || !hasSubstance) {
     if (!hasSubstance && errors.length === 0) {
-      errors.push('Response has no substance: at least one of sections, findings, recommendations, table, plan or chart is required.')
+      errors.push('Response has no substance: provide answer or supporting analytical content.')
     }
     return { ok: false, errors }
   }
@@ -290,6 +295,9 @@ export function validateStructuredResponse(raw: unknown): ValidationResult {
     id: `ai-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`,
     intent,
     title,
+    ...(answer ? { answer } : {}),
+    ...(supportingPoints && supportingPoints.length > 0 ? { supportingPoints } : {}),
+    ...(followUp ? { followUp } : {}),
     ...(summary ? { summary } : {}),
     ...(metrics ? { metrics } : {}),
     ...(sections ? { sections } : {}),

@@ -26,14 +26,10 @@ export function summarizeResponse(
   now: number,
   config: ConversationConfig,
 ): ConversationState['recentAssistantSummaries'][number] {
-  // Claims live in section bodies/bullets, not just the one-line summary —
-  // preserve them so follow-ups ("What did you say about momentum?") can be
-  // answered from memory. Bounded by maxSummaryChars like everything else.
-  const sectionText = (response.sections ?? [])
-    .map((s) => [s.body, ...(s.bullets ?? [])].filter(Boolean).join(' '))
-    .filter(Boolean)
-    .join(' ')
-  const summary = [response.summary ?? '', sectionText].filter(Boolean).join(' ')
+  // Store the conversational answer, not a flattened copy of the rendered
+  // report. Structured evidence remains available through bounded claim and
+  // tool records, without injecting the same prose into every later prompt.
+  const summary = response.answer ?? response.summary ?? response.title
   return {
     turn,
     title: truncateText(response.title, 200),

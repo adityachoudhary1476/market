@@ -26,8 +26,15 @@ export function MacroGrid({ indicators }: Props) {
             key={m.id}
             className="rounded-xl border border-obsidian-900/[0.07] bg-white/70 p-4"
           >
-            <div className="text-[10px] font-semibold uppercase tracking-widest2 text-stone-400">
-              {m.label}
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-semibold uppercase tracking-widest2 text-stone-400">
+                {m.label}
+              </div>
+              {m.dataMode && (
+                <span className="text-[9px] font-medium uppercase tracking-wider text-stone-400">
+                  {m.dataMode}
+                </span>
+              )}
             </div>
             <div className="mt-1.5 font-display text-xl font-semibold tabular text-obsidian-900">
               {m.value}

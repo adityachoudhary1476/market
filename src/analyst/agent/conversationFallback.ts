@@ -146,7 +146,6 @@ function memorySynthesisResponse(
   const displayName = entityDisplayNames(state, [entityId])[0]
   const available = evidence.filter((e) => e.ok && e.available)
   const unavailable = evidence.filter((e) => !e.ok || !e.available)
-  const last = state.lastResponseMetadata
   const sources = state.lastSources
   const provenance = options.provenance === true
 
@@ -203,12 +202,32 @@ function memorySynthesisResponse(
   // the answer is explicitly a recap of the evidence already gathered, no
   // fresh tool run happened, and no Finova tool supports claims beyond it.
   const lead = available.length > 0 ? truncateText(available[0].note, 180) : `no fresh data exists for ${displayName}`
+  const followUp = understandTurn(question, { hasActiveTopic: true }).followUp
+  const thread = state.analyticalThread
+  const incremental =
+    followUp === 'why'
+      ? thread?.supportingFactors ?? []
+      : followUp === 'risks'
+        ? thread?.opposingFactors ?? []
+        : followUp === 'expand' || followUp === 'deepen'
+          ? [...(thread?.supportingFactors ?? []), ...(thread?.opposingFactors ?? [])]
+          : []
+  const incrementalLead = incremental[0] ?? lead
+  const leadPrefix =
+    followUp === 'why' ? 'Mainly because' :
+    followUp === 'risks' ? 'The biggest risk is' :
+    followUp === 'drivers' ? 'The main driver remains' :
+    followUp === 'expand' || followUp === 'deepen' ? 'The key additional point is' :
+    'The short version is'
+  const concise = `${leadPrefix} ${incrementalLead.replace(/^[^:]+:\s*/i, '').replace(/[.]$/, '')}.${options.provenance ? ` ${HONESTY_LIMIT}` : ''}`
 
   return {
     id: `mem-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`,
     intent: 'ask',
     title: `What we know so far about ${displayName}`,
-    summary: `Here's what the session evidence shows for ${displayName}: ${lead}. I couldn't run the tools for this follow-up, so this is a recap of the evidence already gathered for ${displayName} in this conversation.${last ? ` The last answer was "${last.title}".` : ''}`,
+    answer: concise,
+    supportingPoints: available.slice(1, 3).map((e) => truncateText(e.note, 180)),
+    summary: concise,
     sections,
     ...(findings.length > 0 ? { findings } : {}),
     recommendations: ['Ask a fresh question to get a fresh analysis.', 'Say "new analysis" to start a clean session.'],

@@ -12,12 +12,13 @@
 // ---------------------------------------------------------------------------
 
 import { WEBSEARCH_LIMITS } from '../limits'
+import { CURATED_RSS_FEEDS } from '../providers/rss'
 
-export const SUPPORTED_SEARCH_PROVIDERS = ['tavily', 'brave'] as const
+export const SUPPORTED_SEARCH_PROVIDERS = ['tavily', 'brave', 'rss'] as const
 export type SupportedSearchProvider = (typeof SUPPORTED_SEARCH_PROVIDERS)[number]
 
 export interface SearchEnv {
-  /** Provider seam id: 'tavily' or 'brave'. */
+  /** Provider seam id: 'tavily', 'brave' or 'rss'. */
   provider: SupportedSearchProvider
   /** Provider API key — exists ONLY here, server-side. */
   apiKey: string
@@ -56,9 +57,12 @@ export function resolveSearchEnv(env: Record<string, string | undefined>): Searc
   if (!SUPPORTED_SEARCH_PROVIDERS.includes(provider as SupportedSearchProvider)) return null
 
   const apiKey = (env.FINOVA_WEB_SEARCH_API_KEY ?? '').trim()
-  if (!apiKey) return null
-
-  const baseUrl = (env.FINOVA_WEB_SEARCH_BASE_URL ?? '').trim()
+  let baseUrl = (env.FINOVA_WEB_SEARCH_BASE_URL ?? '').trim()
+  // provider=rss is key-less and free: with no explicit feed list it falls
+  // back to the curated public RSS/Atom endpoints, so it works at zero cost
+  // with only FINOVA_WEB_SEARCH_PROVIDER=rss configured.
+  if (provider === 'rss' && !baseUrl) baseUrl = CURATED_RSS_FEEDS.join(',')
+  if (provider !== 'rss' && !apiKey) return null
   return {
     provider: provider as SupportedSearchProvider,
     apiKey,

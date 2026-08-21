@@ -21,6 +21,8 @@ export interface MarketIndex {
   spark: number[]
   region: 'india' | 'us' | 'asia' | 'europe' | 'commodity' | 'fx'
   marketState: 'open' | 'closed' | 'pre' | 'post'
+  /** Provenance of this instrument's data. */
+  dataMode?: 'live' | 'delayed' | 'daily' | 'cached-live' | 'cached-delayed' | 'synthetic-demo' | 'unavailable'
   // Extended session fields (used by the Markets terminal; optional so the
   // homepage's simpler cards remain unaffected).
   open?: number
@@ -143,6 +145,8 @@ export interface MarketBreadth {
   /** New highs / lows for the session. */
   newHighs: number
   newLows: number
+  /** Provenance of this breadth data. */
+  dataMode?: 'live' | 'delayed' | 'daily' | 'cached-live' | 'cached-delayed' | 'synthetic-demo' | 'unavailable'
 }
 
 export interface StockSnapshot {
@@ -216,4 +220,6 @@ export interface MacroIndicator {
   /** When true, a falling value is "good" (e.g. VIX) so the semantic color flips. */
   invertColor?: boolean
   unit?: string
+  /** Provenance of this specific indicator's data. */
+  dataMode?: 'live' | 'delayed' | 'daily' | 'cached-live' | 'cached-delayed' | 'synthetic-demo' | 'unavailable'
 }

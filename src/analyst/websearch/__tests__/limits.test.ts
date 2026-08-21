@@ -87,6 +87,7 @@ test('isValidWebSearchResult: accepts well-formed evidence and rejects garbage',
   assert.equal(isValidWebSearchResult({ ...good, publishedAt: null }), true, 'null date is honest')
   assert.equal(isValidWebSearchResult({ ...good, provider: 'duckduckgo' }), false)
   assert.equal(isValidWebSearchResult({ ...good, source: '' }), false)
+  assert.equal(isValidWebSearchResult({ ...good, source: 'other.example' }), false)
   assert.equal(isValidWebSearchResult(null), false)
   assert.equal(isValidWebSearchResult('text'), false)
 })

@@ -257,6 +257,7 @@ is ever required.
 | `FINOVA_ANALYST_PORT` | SERVER-ONLY | gateway | Dev port (default 8787) |
 | `FINOVA_GATEWAY_RATE_LIMIT` | SERVER-ONLY | gateway | Per-IP req/min (default 60, 0 disables) |
 | `FINOVA_GATEWAY_CORS_ORIGIN` | SERVER-ONLY | gateway | CORS origin (default `*`) |
+| `FINOVA_EIA_API_KEY` | SERVER-ONLY OPTIONAL | market-data gateway | Optional free EIA Open Data key for daily Brent/WTI; without it petroleum data remains unavailable/demo-labelled |
 
 Vite exposes exactly one Finova variable to the browser
 (`FINOVA_ANALYST_API_URL`, via `envPrefix` in `vite.config.ts`). Every

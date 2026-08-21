@@ -20,7 +20,7 @@ const env = resolveServerEnv(process.env)
 const searchEnv = resolveSearchEnv(process.env)
 
 const server = http.createServer((req, res) => {
-  void routeRequest(req, res, { env, searchEnv })
+  void routeRequest(req, res, { env, searchEnv, marketDataApiKey: process.env.FINOVA_EIA_API_KEY?.trim() || null })
 })
 
 const port = env?.port ?? 8787

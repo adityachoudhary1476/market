@@ -33,9 +33,11 @@ import {
   analyzeDriverEvidence,
   buildAnswerFirstSummary,
   buildDriverSummary,
+  catalystEvidence,
   detectConflicts,
   detectDriverConflicts,
   detectTemporalInconsistency,
+  directionalGroupOf,
   naturalHeadingForTool,
   sanitizeToolNames,
   themeLines,
@@ -215,18 +217,20 @@ function sectionFromResult(result: ToolResult): SectionOut[] {
       })
     }
   } else if (tool === 'getMacroContext' && data && typeof data === 'object') {
-    const macro = data.macro as Array<{ label?: string; value?: string; changePct?: number }> | undefined
+    const macro = data.macro as Array<{ label?: string; value?: string; changePct?: number; dataMode?: string }> | undefined
     if (Array.isArray(macro) && macro.length > 0) {
+      const bullets = macro.map((m) => {
+        const change =
+          m.changePct !== undefined && m.changePct !== null
+            ? ` (${m.changePct > 0 ? '+' : ''}${m.changePct.toFixed(2)}%)`
+            : ''
+        const mode = m.dataMode && m.dataMode !== 'synthetic-demo' ? ` [${m.dataMode}]` : ''
+        return `${m.label ?? 'Indicator'}: ${m.value ?? 'n/a'}${change}${mode}`
+      })
       out.push({
         heading: 'Macro context',
         kind: 'fact',
-        bullets: macro.map((m) => {
-          const change =
-            m.changePct !== undefined && m.changePct !== null
-              ? ` (${m.changePct > 0 ? '+' : ''}${m.changePct.toFixed(2)}%)`
-              : ''
-          return `${m.label ?? 'Indicator'}: ${m.value ?? 'n/a'}${change}`
-        }),
+        bullets,
       })
     } else {
       out.push({
@@ -507,6 +511,8 @@ export function synthesizeResponse(input: SynthesisInput): AnalystResponse {
     driverSummary,
   })
 
+  const debateSummary = input.debate ? buildDebateSummary(label, results, driverSummary) : null
+
   return {
     id: `syn-${Date.now().toString(36)}-${Math.floor(Math.random() * 0xffffff).toString(36)}`,
     intent: 'ask',
@@ -517,7 +523,7 @@ export function synthesizeResponse(input: SynthesisInput): AnalystResponse {
       : label
         ? `${label} — what the available evidence shows`
         : 'What the available evidence shows',
-    summary: continuedSummary ??
+    summary: continuedSummary ?? debateSummary ??
       (input.catalystRelevant
         ? buildDriverSummary({ label: label ?? undefined, results })
         : buildAnswerFirstSummary({ label: label ?? undefined, results })),
@@ -530,6 +536,17 @@ export function synthesizeResponse(input: SynthesisInput): AnalystResponse {
     generatedAt: new Date().toISOString(),
     ...(cited.length > 0 ? { sources: cited } : {}),
   }
+}
+
+function buildDebateSummary(label: string | null, results: ToolResult[], driver: boolean): string {
+  const name = label ?? 'The instrument'
+  const read = results.map(directionalGroupOf).find((group): group is NonNullable<ReturnType<typeof directionalGroupOf>> => group !== null)
+  const catalysts = catalystEvidence(results, 2)
+  const verdict = read?.sign === 'bull' ? 'leaning bullish' : read?.sign === 'bear' ? 'leaning bearish' : 'mixed'
+  const support = catalysts[0]?.text ?? (read ? `the ${read.label}` : 'the available market data')
+  const risk = catalysts[1]?.text ?? 'the opposing evidence is not decisive'
+  const suffix = driver && catalysts.length === 0 ? ' No reliable catalyst could be established from the available news.' : ''
+  return `${name} is ${verdict} right now. The supporting case is ${support}; the main counterweight is ${risk}. The view would weaken if the opposing signal strengthens.${suffix}`
 }
 
 /**

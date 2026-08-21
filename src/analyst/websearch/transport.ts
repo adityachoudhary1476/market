@@ -155,7 +155,7 @@ export function createHttpWebSearchTransport(options: HttpWebSearchTransportOpti
       const results = body.results.filter((r) => isValidWebSearchResult(r))
       return {
         query: typeof body.query === 'string' ? body.query : query.query,
-        provider: body.provider === 'tavily' || body.provider === 'brave' ? body.provider : 'tavily',
+        provider: body.provider === 'tavily' || body.provider === 'brave' || body.provider === 'rss' ? body.provider : 'tavily',
         results,
         totalResults: typeof body.totalResults === 'number' ? body.totalResults : results.length,
         truncated: body.truncated === true,

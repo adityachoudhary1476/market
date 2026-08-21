@@ -98,7 +98,7 @@ export function createResearchAwareFallback(options: ResearchAwareFallbackOption
     //    corroboration), never fabricated. A transport failure or an empty
     //    feed simply leaves the news evidence out.
     try {
-      const news = await researchNews(primary.subject.label, primary.subject.searchHint, search.transport, toolContext.now)
+      const news = await researchNews(primary.subject.label, primary.subject.searchHint, search, toolContext.now)
       if (news) {
         evidence.push(news.result)
         for (const item of news.items) session.sources.push(item)
@@ -184,18 +184,19 @@ function subjectDataResult(
 async function researchNews(
   label: string,
   searchHint: string,
-  transport: SearchSessionDeps['transport'],
+  search: SearchSessionDeps,
   now: number,
 ): Promise<{ result: ToolResult; items: NewsItem[] } | null> {
   const subject = searchHint.trim() || label.trim()
   const build = buildNewsQuery(subject, { maxResults: 5, maxAgeDays: 7 })
   if (!build.ok) return null
 
-  const { response } = await retrieveEvidence({ transport, query: build.query, tool: 'searchNews' })
+  const { response } = await retrieveEvidence({ transport: search.transport, query: build.query, tool: 'searchNews', cache: search.cache })
   const validated = response.results.filter((r) => isValidWebSearchResult(r))
   const processed = processNewsResults(dedupeResults(validated).results, {
     subject: build.query.query,
     maxItems: build.query.maxResults,
+    maxAgeDays: build.maxAgeDays,
     now,
   })
   if (processed.items.length === 0) return null

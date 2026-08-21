@@ -83,6 +83,12 @@ export interface AnalystResponse {
   id: string
   intent: Intent
   title: string
+  /** Primary conversational answer shown to the user. */
+  answer?: string
+  /** Small set of optional supporting points for the conversational view. */
+  supportingPoints?: string[]
+  /** One optional, useful continuation prompt. */
+  followUp?: string
   /** One-line summary shown directly under the title. */
   summary?: string
   metrics?: AnalystMetric[]

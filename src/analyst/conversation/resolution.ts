@@ -40,7 +40,7 @@ export function resolveTurn(text: string, state: ConversationState, options: Res
     ? explicit.find((e) => e.id === correction.corrected)
     : undefined
 
-  const orderedEntities = orderEntities(explicit, correctedEntity, references, state)
+  let orderedEntities = orderEntities(explicit, correctedEntity, references, state)
   if (correction?.corrected && !orderedEntities.some((e) => e.id === correction.corrected)) {
     const probe = explicit.find((e) => e.id === correction.corrected)
     if (probe) orderedEntities.push(probe)
@@ -120,7 +120,10 @@ function detectComparison(
   state: ConversationState,
 ): ContextInterpretation['comparison'] {
   const compareIntent = COMPARE_PATTERNS.test(text)
-  const ids = explicit.map((e) => e.id)
+  const ids = [
+    ...references.filter((r) => r.entityId).map((r) => r.entityId as string),
+    ...explicit.map((e) => e.id),
+  ].filter((id, index, all) => all.indexOf(id) === index)
 
   if (compareIntent && ids.length >= 2) {
     return {

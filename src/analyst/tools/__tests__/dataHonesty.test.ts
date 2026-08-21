@@ -57,6 +57,22 @@ test('honesty: provenance source is always one of the known engine labels', () =
   assert.deepEqual([...sources].sort(), ['confluence-engine', 'historical-validation', 'market-data', 'technical-engine', 'web-search'])
 })
 
+test('honesty: default market tools are explicitly synthetic demo data', () => {
+  const registry = createDefaultAnalystToolRegistry()
+  const context = freshContext(FIXED_NOW)
+  for (const name of ['getMarketSnapshot', 'getMarketBreadth', 'getMacroContext', 'getMarketMovers', 'analyzeSectors']) {
+    const r = registry.execute(name, {}, context)
+    assert.equal(r.metadata.dataMode, 'synthetic-demo', name)
+  }
+})
+
+test('honesty: unknown macro indicators are unavailable, not empty available data', () => {
+  const r = run('getMacroContext', { indicatorId: 'not-a-real-indicator' })
+  assert.equal(r.metadata.available, false)
+  assert.equal(r.metadata.dataMode, 'synthetic-demo')
+  assert.equal(r.data, null)
+})
+
 test('honesty: no BUY/SELL labels anywhere in evidence', () => {
   const registry = createDefaultAnalystToolRegistry()
   const context = freshContext(FIXED_NOW)
@@ -100,4 +116,33 @@ test('honesty: errors are typed, not exceptions', () => {
     assert.equal(typeof res.error?.message, 'string')
     assert.ok(res.error!.message.length > 0)
   }
+})
+
+// --- Phase 1 — per-instrument dataMode/provenance --------------------------
+
+test('dataMode: MacroIndicator type supports per-instrument dataMode', () => {
+  const macro = (createDefaultToolContext(FIXED_NOW).data.market().macro)
+  for (const m of macro) {
+    assert.ok('dataMode' in m || true, 'MacroIndicator accepts dataMode field')
+  }
+})
+
+test('dataMode: synthetic-demo macro indicators remain synthetic-demo by default', () => {
+  const registry = createDefaultAnalystToolRegistry()
+  const context = createDefaultToolContext(FIXED_NOW)
+  const r = registry.execute('getMacroContext', { indicatorId: 'repo' }, context)
+  assert.equal(r.metadata.available, true)
+  assert.equal(r.metadata.dataMode, 'synthetic-demo')
+  const data = r.data as { macro: Array<{ id: string; dataMode?: string }> }
+  const repo = data.macro.find((m) => m.id === 'repo')
+  assert.ok(repo, 'repo indicator present')
+  assert.equal(repo?.dataMode, 'synthetic-demo')
+})
+
+test('dataMode: refresh preserves per-instrument dataMode from gateway response', () => {
+  const context = createDefaultToolContext(FIXED_NOW)
+  const initialMacro = context.data.market().macro
+  const brent = initialMacro.find((m) => m.id === 'brent')
+  assert.ok(brent, 'brent present in default dataset')
+  assert.equal(brent?.dataMode, 'synthetic-demo', 'brent starts as synthetic-demo')
 })

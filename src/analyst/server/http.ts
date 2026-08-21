@@ -16,7 +16,7 @@
 // ---------------------------------------------------------------------------
 
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { ANALYST_GATEWAY_PATH, SEARCH_GATEWAY_PATH } from '../api/contract'
+import { ANALYST_GATEWAY_PATH, SEARCH_GATEWAY_PATH, MARKET_DATA_PATH } from '../api/contract'
 import type { ServerEnv } from './env'
 import { GATEWAY_LIMITS } from './limits'
 import { handleAnalystRequest } from './gateway'
@@ -24,6 +24,7 @@ import { handleSearchRequest } from '../websearch/server/searchGateway'
 import type { SearchEnv } from '../websearch/server/env'
 import { createRateLimiter } from './rateLimit'
 import { logAgent } from '../agent/logger'
+import { handleMarketDataRequest } from './marketDataGateway'
 
 export interface HttpGatewayDeps {
   env: ServerEnv | null
@@ -31,6 +32,8 @@ export interface HttpGatewayDeps {
   provider?: Parameters<typeof handleAnalystRequest>[1]['provider']
   /** Server-side web-search env (Phase 3C.1). null = not configured. */
   searchEnv?: SearchEnv | null
+  /** Optional free EIA key; independent of LLM configuration. */
+  marketDataApiKey?: string | null
 }
 
 const JSON_TYPE = 'application/json; charset=utf-8'
@@ -147,7 +150,8 @@ export async function routeRequest(req: IncomingMessage, res: ServerResponse, de
 
   const isAnalyze = url.pathname === ANALYST_GATEWAY_PATH
   const isSearch = url.pathname === SEARCH_GATEWAY_PATH
-  if (!isAnalyze && !isSearch) {
+  const isMarketData = url.pathname === MARKET_DATA_PATH
+  if (!isAnalyze && !isSearch && !isMarketData) {
     send(res, 404, {
       error: { code: 'invalid-request', message: `Not found. Use POST ${ANALYST_GATEWAY_PATH} or ${SEARCH_GATEWAY_PATH}.` },
     })
@@ -191,7 +195,9 @@ export async function routeRequest(req: IncomingMessage, res: ServerResponse, de
 
     const result = isSearch
       ? await handleSearchRequest(body, { searchEnv: searchEnv ?? null })
-      : await handleAnalystRequest(body, { env, provider: deps.provider })
+      : isMarketData
+        ? await handleMarketDataRequest(body, { apiKey: deps.marketDataApiKey ?? env?.eiaApiKey ?? null })
+        : await handleAnalystRequest(body, { env, provider: deps.provider })
     send(res, result.status, result.body)
   } catch (thrown) {
     const message = thrown instanceof Error ? thrown.message : 'Unexpected HTTP failure'

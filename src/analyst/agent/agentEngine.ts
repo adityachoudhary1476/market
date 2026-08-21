@@ -28,7 +28,10 @@ import { suggestFollowUps } from '../conversation/contextBuilder'
 import { createConversationAwareFallback } from './conversationFallback'
 import { createSubjectAwareFallback } from './subjectFallback'
 import { createResearchAwareFallback } from './researchFallback'
-import { applyOutputHygiene, isProvenanceAsk } from './responseIntelligence'
+import { applyOutputHygiene, isProvenanceAsk, annotateSyntheticData } from './responseIntelligence'
+import { understandTurn } from './understanding'
+import { createSearchCache } from '../websearch/cache'
+import { WEBSEARCH_LIMITS } from '../websearch/limits'
 
 export interface AgentEngineOptions {
   provider?: LLMProvider
@@ -53,7 +56,9 @@ export interface AgentEngineOptions {
 /** The app's default search session: the browser transport or none at all. */
 function defaultSearchDeps(): SearchSessionDeps | undefined {
   const transport = createDefaultWebSearchTransport()
-  return transport ? { transport } : undefined
+  return transport
+    ? { transport, cache: createSearchCache({ ttlMs: WEBSEARCH_LIMITS.cacheTtlMs, maxEntries: WEBSEARCH_LIMITS.cacheMaxEntries }) }
+    : undefined
 }
 
 /**
@@ -130,7 +135,7 @@ export function createAgentAnalystEngine(options: AgentEngineOptions = {}): Anal
         // internal marker reaches the UI. Provenance is NOT preserved on the
         // LLM path — the tool-name exemption belongs to the deterministic
         // memory fallback only (applied in the catch branch below).
-        return applyOutputHygiene(output.response)
+        return applyOutputHygiene(output.response, { depth: output.understanding?.depth ?? 'standard' })
       } catch (thrown) {
         const message = thrown instanceof Error ? thrown.message : 'Agent failed unexpectedly'
         logAgent({ kind: 'error', message })
@@ -138,6 +143,10 @@ export function createAgentAnalystEngine(options: AgentEngineOptions = {}): Anal
         // Phase 3N.3 — driver questions may still be researched through the
         // research-aware layer; whatever evidence IT gathered is recorded in
         // session memory so the next LLM turn has the full context.
+        if (researchAwareFallback) {
+          researchAwareFallback.lastSession.evidence = []
+          researchAwareFallback.lastSession.sources = []
+        }
         const response = await resolvedFallback.generate(input)
         // Phase 3D.1 — the fallback answer is still part of the conversation:
         // remember the turn so the next LLM turn has the full context.
@@ -150,7 +159,13 @@ export function createAgentAnalystEngine(options: AgentEngineOptions = {}): Anal
             now: toolContext.now,
           })
         }
-        return applyOutputHygiene(response, { preserveProvenance: isProvenanceAsk(input.text) })
+        return annotateSyntheticData(
+          applyOutputHygiene(response, {
+            preserveProvenance: isProvenanceAsk(input.text),
+            depth: understandTurn(input.text, { hasActiveTopic: Boolean(conversation?.state.activeTopic) }).depth,
+          }),
+          [],
+        )
       }
     },
 

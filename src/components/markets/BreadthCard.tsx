@@ -20,7 +20,14 @@ export function BreadthCard({ breadth }: Props) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-stone-100">
+      {breadth.dataMode && (
+        <div className="mb-3">
+          <span className="inline-flex items-center rounded-full border border-obsidian-900/10 bg-ivory-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-stone-500">
+            {breadth.dataMode}
+          </span>
+        </div>
+      )}
+      <div className="flex h-3 overflow-hidden rounded-full bg-stone-100">
         <div className="bg-gain transition-all duration-700" style={{ width: `${a}%` }} />
         <div className="bg-stone-300" style={{ width: `${u}%` }} />
         <div className="bg-loss" style={{ width: `${d}%` }} />

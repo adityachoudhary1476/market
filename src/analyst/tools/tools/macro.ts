@@ -6,10 +6,9 @@
 // the source, they never present it as exchange fact.
 // ---------------------------------------------------------------------------
 
-import { terminalMacro } from '../../../data/mockMacro'
 import type { MacroIndicator } from '../../../types'
 import type { AnalystTool, ToolResult } from '../types'
-import { successResult } from '../results'
+import { successResult, unavailableResult } from '../results'
 
 export interface MacroContextInput {
   /** Optional: only return the indicator with this id, e.g. 'repo'. */
@@ -36,16 +35,25 @@ export const getMacroContext: AnalystTool<MacroContextInput, MacroContextOutput>
   },
   run(input, context): ToolResult<MacroContextOutput> {
     const indicatorId = typeof input?.indicatorId === 'string' ? input.indicatorId.trim() : undefined
+    const availableMacro = context.data.market().macro
     const macro = indicatorId
-      ? terminalMacro.filter((m) => m.id === indicatorId || m.label.toLowerCase() === indicatorId.toLowerCase())
-      : terminalMacro
+      ? availableMacro.filter((m) => m.id === indicatorId || m.label.toLowerCase() === indicatorId.toLowerCase())
+      : availableMacro
 
     const warnings = indicatorId && macro.length === 0 ? [`Macro indicator '${indicatorId}' not found.`] : []
+
+    if (indicatorId && macro.length === 0) {
+      return unavailableResult(this.name, 'market-data', {
+        now: context.now,
+        warnings,
+      })
+    }
 
     return successResult(this.name, 'market-data', { macro }, {
       available: true,
       now: context.now,
       warnings,
+      dataMode: macro.length === 1 ? (macro[0].dataMode ?? 'synthetic-demo') : 'synthetic-demo',
     })
   },
 }

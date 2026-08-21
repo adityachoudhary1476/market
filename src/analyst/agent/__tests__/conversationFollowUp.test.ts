@@ -93,7 +93,7 @@ test('D12 — a same-subject driver follow-up runs fresh research again (session
 
   const follow = await engine.generate({ text: 'Why is oil moving again?', context: CONTEXT })
   assert.equal(calls.length, 2, 'the driver follow-up runs the research tools again')
-  assert.ok(follow.summary?.includes("What's moving"), 'the follow-up gets a fresh driver synthesis')
+  assert.ok(/oil|brent/i.test(follow.answer ?? follow.summary ?? ''), 'the follow-up gets a fresh conversational synthesis')
 })
 
 test('D13 — a same-subject bullish/bearish follow-up runs fresh research again', async () => {
@@ -106,7 +106,7 @@ test('D13 — a same-subject bullish/bearish follow-up runs fresh research again
 
   const follow = await engine.generate({ text: 'Is oil bullish rn?', context: CONTEXT })
   assert.equal(calls.length, 2, 'the bullish/bearish follow-up runs the research tools again')
-  assert.ok(follow.summary?.includes("What's moving"), 'the follow-up gets a fresh driver synthesis')
+  assert.ok(/oil|brent/i.test(follow.answer ?? follow.summary ?? ''), 'the follow-up gets a fresh conversational synthesis')
 })
 
 test('D14 — an explicit recap request answers from session memory and runs NO tools', async () => {
@@ -120,7 +120,7 @@ test('D14 — an explicit recap request answers from session memory and runs NO 
   const recap = await engine.generate({ text: 'What did you say about oil above?', context: CONTEXT })
   assert.equal(calls.length, 1, 'an explicit recap runs no research tools')
   assert.ok(recap.title?.includes('What we know so far'), recap.title)
-  assert.ok(recap.summary?.includes('recap of the evidence already gathered'), 'the recap labels itself as session memory')
+  assert.ok(recap.answer?.startsWith('The short version is'), 'the recap answers concisely')
   assert.equal(recap.partial, true)
 })
 

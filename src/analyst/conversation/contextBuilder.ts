@@ -137,10 +137,33 @@ export function buildContextPayload(
 
   const body = sections.join('\n')
   const full = `${HEADER}\n${body}`
-  const bounded = full.length > config.maxContextChars
-    ? `${full.slice(0, config.maxContextChars)}\n…[context truncated]`
-    : full
-  return bounded
+  if (full.length <= config.maxContextChars) return full
+
+  // Preserve the current turn and active thread before older evidence. A raw
+  // prefix slice commonly dropped the interpretation that resolves "why?".
+  const priority = [
+    'This turn\'s interpretation:',
+    'Ambiguity:',
+    '- Analytical thread:',
+    '- Last answer:',
+    '- Active topic:',
+    '- Active entities:',
+    '- Prior summaries:',
+    '- Recent important findings:',
+    '- Latest tool evidence',
+    '- Recent news:',
+    '- Recent web sources:',
+  ]
+  const selected = priority.flatMap((marker) => sections.filter((section) => section.includes(marker)))
+  const remainder = sections.filter((section) => !selected.includes(section))
+  const ordered = [...selected, ...remainder]
+  let output = HEADER
+  for (const section of ordered) {
+    const next = `${output}\n${section}`
+    if (next.length > config.maxContextChars - 24) break
+    output = next
+  }
+  return `${output}\n…[context truncated]`
 }
 
 function interpretationLine(references: ReferenceResolution[]): string {

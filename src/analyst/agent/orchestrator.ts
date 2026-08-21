@@ -38,7 +38,7 @@ import { describeUniverse, findEntityMentions, resolveEntity } from './entityRes
 import { understandTurn, threadMetaOf, type Understanding } from './understanding'
 import { validateStructuredResponse } from './responseValidator'
 import { synthesizeResponse } from './synthesis'
-import { refineResponse, auditResponse, applyOutputHygiene } from './responseIntelligence'
+import { refineResponse, auditResponse, applyOutputHygiene, annotateSyntheticData } from './responseIntelligence'
 import { logAgent } from './logger'
 import { isValidWebSearchResult } from '../websearch/limits'
 import { validateWebSearchQuery } from '../websearch/limits'
@@ -79,6 +79,8 @@ export interface SearchSessionDeps {
   transport: WebSearchTransport
   /** Approved: 4 web searches per session. */
   maxSearches?: number
+  /** Shared request/session cache used by the main loop and fallbacks. */
+  cache?: SearchCache
 }
 
 const VALIDATION_HINT =
@@ -141,6 +143,7 @@ export async function runAgentSession(
 ): Promise<AgentSessionOutput> {
   const config: AgentConfig = { ...DEFAULT_AGENT_CONFIG, ...(deps.config ?? {}) }
   const { provider, registry, toolContext } = deps
+  if (toolContext.refresh) await toolContext.refresh()
   const trace: AgentTraceStep[] = []
 
   // Phase 3D.1 — resolve this turn against session memory (pure, never mutates).
@@ -198,10 +201,10 @@ export async function runAgentSession(
   // never reach the transport (and therefore never reach Tavily). Bounded by
   // the approved cache limits; entries expire (configurable TTL, default 300s).
   const evidenceCache: SearchCache | null = config.cacheToolResults
-    ? createSearchCache({
+    ? (deps.search?.cache ?? createSearchCache({
         ttlMs: config.searchCacheTtlMs ?? WEBSEARCH_LIMITS.cacheTtlMs,
         maxEntries: WEBSEARCH_LIMITS.cacheMaxEntries,
-      })
+      }))
     : null
   let toolCallsUsed = 0
   let round = 0
@@ -216,6 +219,7 @@ export async function runAgentSession(
   // came from searchNews) plus its own per-session budget.
   const sessionNews: NewsItem[] = []
   const newsUsage = { used: 0 }
+  const totalSearchUsage = { used: 0 }
   // Retrieval-cost optimization — observability counters for the session
   // summary (dev logs only, never user-facing).
   const searchCacheHits = { count: 0 }
@@ -227,7 +231,26 @@ export async function runAgentSession(
     round += 1
     logAgent({ kind: 'reasoning-round', round, provider: provider.name })
 
-    const tools = buildProviderTools(registry, { includeWebSearch: webSearchAvailable })
+    // Phase 5 — deterministic intent-based research policies: restrict the
+    // offered tool catalog to what the question actually needs. This prevents
+    // the model from blindly calling every tool and keeps retrieval cheap.
+    // - simple price/status: market-data tools only, no web search
+    // - driver/catalyst: market data + searchNews (RSS-first at the gateway)
+    // - compare: market data for both subjects, news only if explicitly needed
+    // - generic factual: searchWeb only, no market data
+    // - deep research: full catalog allowed
+    const isSimpleStatus = understanding.intent === 'current_market_status' && !understanding.catalystRelevant && !understanding.debate
+    const isDriver = understanding.catalystRelevant && !understanding.debate
+    const isCompare = understanding.intent === 'compare'
+    const isDeepResearch = understanding.depth === 'deep'
+    const isNewsOnly = understanding.intent === 'news'
+    const isGenericFactual = understanding.intent === 'other' && !understanding.catalystRelevant
+
+    const tools = buildProviderTools(registry, {
+      includeWebSearch: webSearchAvailable && !isSimpleStatus && !isCompare,
+      includeSearchNews: webSearchAvailable && (isNewsOnly || isDriver || isDeepResearch),
+      includeSearchWeb: webSearchAvailable && (isGenericFactual || isDeepResearch),
+    })
     let result
     try {
       result = await callWithRetry(provider, { system, messages, tools, config, trace, round })
@@ -279,6 +302,7 @@ export async function runAgentSession(
         search: deps.search,
         searchUsage,
         newsUsage,
+        totalSearchUsage,
         sessionSources,
         sessionNews,
         evidenceCache,
@@ -292,6 +316,55 @@ export async function runAgentSession(
 
     // No tool calls — the model is answering.
     const parsed = parseJsonContent(result.content)
+
+    // Phase 3P — for driver/catalyst questions, ensure fresh news evidence is
+    // gathered before the model finalizes. If the model produced a final
+    // response without calling searchNews/searchWeb, run searchNews
+    // automatically and feed the results back for one more reasoning round.
+    if (
+      parsed === null &&
+      result.toolCalls.length === 0 &&
+      understanding.catalystRelevant &&
+      !gathered.some((g) => g.result.metadata.tool === 'searchNews' || g.result.metadata.tool === 'searchWeb')
+    ) {
+      if (toolCallsUsed < config.maxToolCalls && round < config.maxReasoningRounds) {
+        const autoSubject = understanding.primary?.subject.label ?? understanding.newsHint ?? input.text
+        const autoNewsCall: LLMToolCall = {
+          id: `auto-news-${Date.now().toString(36)}`,
+          name: 'searchNews',
+          arguments: { subject: autoSubject },
+        }
+        const autoExecuted = await executeToolCalls([autoNewsCall], {
+          registry,
+          toolContext,
+          config,
+          toolCache,
+          trace,
+          round,
+          messages,
+          search: deps.search,
+          searchUsage,
+          newsUsage,
+          totalSearchUsage,
+          sessionSources,
+          sessionNews,
+          evidenceCache,
+          searchCacheHits,
+          newsCacheHits,
+        })
+        gathered.push(...autoExecuted)
+        toolCallsUsed += autoExecuted.length
+        trace.push({
+          kind: 'tool',
+          round,
+          tool: 'searchNews',
+          ok: autoExecuted[0]?.result.ok ?? false,
+          detail: `auto-enforced for driver question (${autoSubject})`,
+        })
+        continue
+      }
+    }
+
     if (parsed !== null) {
       const validation = validateStructuredResponse(parsed)
       if (validation.ok && validation.response) {
@@ -402,7 +475,9 @@ catalystRelevant: understanding.catalystRelevant,
   // returned response (idempotent). Provenance is NOT preserved here — the
   // tool-name exemption belongs to the deterministic memory fallback only.
   if (final) {
-    final.response = applyOutputHygiene(final.response)
+    // Keep the internal session output rich. The engine's public generate()
+    // boundary applies the question's depth policy before rendering.
+    final.response = annotateSyntheticData(applyOutputHygiene(final.response), gathered.map((g) => g.result))
   }
 
   // Phase 3D.1 — record the completed turn in session memory.
@@ -592,6 +667,7 @@ async function executeToolCalls(
     search?: SearchSessionDeps
     searchUsage: { used: number }
     newsUsage: { used: number }
+    totalSearchUsage: { used: number }
     sessionSources: WebSearchResult[]
     sessionNews: NewsItem[]
     evidenceCache: SearchCache | null
@@ -599,7 +675,7 @@ async function executeToolCalls(
     newsCacheHits: { count: number }
   },
 ): Promise<GatheredEvidence[]> {
-  const { registry, toolContext, config, toolCache, trace, round, messages, search, searchUsage, newsUsage, sessionSources, sessionNews, evidenceCache, searchCacheHits, newsCacheHits } = opts
+  const { registry, toolContext, config, toolCache, trace, round, messages, search, searchUsage, newsUsage, totalSearchUsage, sessionSources, sessionNews, evidenceCache, searchCacheHits, newsCacheHits } = opts
   const executed: GatheredEvidence[] = []
 
   for (const call of calls) {
@@ -614,6 +690,7 @@ async function executeToolCalls(
         config,
         search: search ?? null,
         searchUsage,
+        totalSearchUsage,
         sessionSources,
         evidenceCache,
         searchCacheHits,
@@ -634,6 +711,7 @@ async function executeToolCalls(
         config,
         search: search ?? null,
         newsUsage,
+        totalSearchUsage,
         sessionSources,
         sessionNews,
         evidenceCache,
@@ -655,6 +733,7 @@ async function executeToolCalls(
           tool: call.name,
           timestamp: new Date(toolContext.now).toISOString(),
           source: 'market-data',
+          dataMode: 'unavailable',
           available: false,
           warnings: [`Tool '${call.name}' is not in the registry.`],
         },
@@ -708,12 +787,13 @@ async function executeSearchWebCall(
     messages: LLMMessage[]
     search: SearchSessionDeps | null
     searchUsage: { used: number }
+    totalSearchUsage: { used: number }
     sessionSources: WebSearchResult[]
     evidenceCache: SearchCache | null
     searchCacheHits: { count: number }
   },
 ): Promise<ToolResult> {
-  const { toolContext, config, trace, round, messages, search, searchUsage, sessionSources, evidenceCache, searchCacheHits } = opts
+  const { toolContext, config, trace, round, messages, search, searchUsage, totalSearchUsage, sessionSources, evidenceCache, searchCacheHits } = opts
   const name = 'searchWeb'
 
   const args = normalizeArgs(name, call.arguments)
@@ -737,7 +817,7 @@ async function executeSearchWebCall(
   logAgent({ kind: 'research-query', tool: name, query: query.query })
 
   const budget = search.maxSearches ?? 4
-  if (searchUsage.used >= budget) {
+  if (totalSearchUsage.used >= budget) {
     const result = unavailableSearchResult(toolContext.now, [
       `Web search session limit reached (${budget} searches per session). No further live search was performed.`,
     ])
@@ -747,7 +827,6 @@ async function executeSearchWebCall(
     return result
   }
 
-  searchUsage.used += 1
   try {
     // Retrieval-cost optimization — cache-first, transport (Tavily) fallback.
     // A cache hit is served with NO transport call; the event stream logs the
@@ -756,7 +835,7 @@ async function executeSearchWebCall(
       transport: search.transport,
       query,
       tool: name,
-      cache: evidenceCache ?? undefined,
+      cache: evidenceCache ?? search?.cache,
       onEvent: (event) => {
         if (event.type === 'hit') {
           searchCacheHits.count += 1
@@ -768,6 +847,11 @@ async function executeSearchWebCall(
         }
       },
     })
+
+    if (response.cached !== true) {
+      searchUsage.used += 1
+      totalSearchUsage.used += 1
+    }
 
     // Defensive re-validation of transport output — only real, well-formed
     // results become evidence.
@@ -850,13 +934,14 @@ async function executeNewsCall(
     messages: LLMMessage[]
     search: SearchSessionDeps | null
     newsUsage: { used: number }
+    totalSearchUsage: { used: number }
     sessionSources: WebSearchResult[]
     sessionNews: NewsItem[]
     evidenceCache: SearchCache | null
     newsCacheHits: { count: number }
   },
 ): Promise<ToolResult> {
-  const { toolContext, config, trace, round, messages, search, newsUsage, sessionSources, sessionNews, evidenceCache, newsCacheHits } = opts
+  const { toolContext, config, trace, round, messages, search, newsUsage, totalSearchUsage, sessionSources, sessionNews, evidenceCache, newsCacheHits } = opts
   const name = 'searchNews'
 
   const args = normalizeArgs(name, call.arguments)
@@ -869,8 +954,8 @@ async function executeNewsCall(
     return result
   }
 
-  const budget = 4
-  if (newsUsage.used >= budget) {
+  const budget = search.maxSearches ?? 4
+  if (totalSearchUsage.used >= budget) {
     const result = unavailableSearchResult(toolContext.now, [
       `Live news session limit reached (${budget} news searches per session). No further live news search was performed.`,
     ])
@@ -899,7 +984,6 @@ async function executeNewsCall(
   }
   logAgent({ kind: 'research-query', tool: name, subject: typeof args.subject === 'string' ? args.subject : undefined, query: build.query.query })
 
-  newsUsage.used += 1
   try {
     // Retrieval-cost optimization — cache-first, transport (Tavily) fallback.
     // A cached response is re-processed against the CURRENT clock below, so
@@ -908,7 +992,7 @@ async function executeNewsCall(
       transport: search.transport,
       query: build.query,
       tool: name,
-      cache: evidenceCache ?? undefined,
+      cache: evidenceCache ?? search?.cache,
       onEvent: (event) => {
         if (event.type === 'hit') {
           newsCacheHits.count += 1
@@ -921,6 +1005,11 @@ async function executeNewsCall(
       },
     })
 
+    if (response.cached !== true) {
+      newsUsage.used += 1
+      totalSearchUsage.used += 1
+    }
+
     // Defensive re-validation — only real, well-formed results may proceed.
     const validated = response.results.filter((r) => isValidWebSearchResult(r))
     const deduped = dedupeResults(validated).results
@@ -928,6 +1017,7 @@ async function executeNewsCall(
       subject: build.query.query,
       region: build.region,
       maxItems: build.query.maxResults,
+      maxAgeDays: build.maxAgeDays,
       now: toolContext.now,
     })
 
@@ -944,9 +1034,10 @@ async function executeNewsCall(
       headlines: processed.items.slice(0, 3).map((i) => i.title),
     })
 
-    const data: NewsEvidence = {
+    const data: NewsEvidence & { cached?: boolean } = {
       ...processed,
       query: build.query,
+      ...(response.cached === true ? { cached: true } : {}),
     }
     const result = successNewsResult(toolContext.now, data, warnings)
     for (const item of processed.items) {
@@ -991,6 +1082,7 @@ export function successNewsResult(now: number, data: NewsEvidence, warnings: str
       tool: 'searchNews',
       timestamp: new Date(now).toISOString(),
       source: 'web-search',
+      dataMode: (data as NewsEvidence & { cached?: boolean }).cached === true ? 'cached-live' : 'live',
       available: true,
       warnings,
     },
@@ -1006,6 +1098,7 @@ function unavailableSearchResult(now: number, warnings: string[], tool: string =
       tool,
       timestamp: new Date(now).toISOString(),
       source: 'web-search',
+      dataMode: 'unavailable',
       available: false,
       warnings,
     },
@@ -1030,6 +1123,7 @@ function successSearchResult(now: number, data: Record<string, unknown>, warning
       tool: 'searchWeb',
       timestamp: new Date(now).toISOString(),
       source: 'web-search',
+      dataMode: (data.cached === true ? 'cached-live' : 'live'),
       available: true,
       warnings,
     },

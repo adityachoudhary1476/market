@@ -5,7 +5,7 @@ import { mockIndices } from '@/data/mockMarkets'
 
 export function MarketOverview() {
   const featured = mockIndices.filter((m) =>
-    ['nifty-50', 'sensex', 'bank-nifty'].includes(m.id),
+    ['nifty-50', 'sensex', 'bank-nifty', 'nifty-it'].includes(m.id),
   )
 
   return (

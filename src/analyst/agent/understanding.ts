@@ -245,7 +245,7 @@ const DRIVERS_RE =
 const RISKS_RE =
   /\b(what could (kill|break|invalidate|derail|undo|change|go wrong)|what would (invalidate|break|change)|what'?s the (risk|catch|downside)|what are the risks|biggest risk|main risk|risk to that|against that|the other side)\b/i
 
-const DEEPEN_RE = /\b(go deeper|deeper|elaborate|expand (on|that|this|it)|more detail|fuller|further detail|in more depth|more depth|get into it)\b/i
+const DEEPEN_RE = /\b(go deeper|deeper|deep analysis|full analysis|an in-depth analysis|elaborate|expand (on|that|this|it)|more detail|fuller|further detail|in more depth|more depth|get into it)\b/i
 
 const EXPAND_RE = /\b(expand|tell me more|more on that|continue|keep going)\b/i
 
@@ -344,6 +344,7 @@ export function estimateDepth(
   followUp: FollowUpKind = 'new',
 ): UnderstandingDepth {
   const len = text.trim().length
+  if (DEEPEN_RE.test(text)) return 'deep'
   const terseStatus =
     intent === 'current_market_status' ||
     intent === 'technical' ||
@@ -393,7 +394,8 @@ export function understandTurn(text: string, options: UnderstandTurnOptions = {}
   // counts only when the turn names what it is about ("is oil bullish?",
   // "what's your read on brent?"). A bare "are you bullish?" with no subject
   // and no active topic is not a debate — it cannot be weighed.
-  const debate = BULL_BEAR_RE.test(text) || (DEBATE_DIRECTIONAL_RE.test(text) && subjects.length > 0)
+  const debate = BULL_BEAR_RE.test(text) ||
+    (DEBATE_DIRECTIONAL_RE.test(text) && subjects.length > 0 && intent !== 'explain_move')
 
   const needsClarification =
     (subjects.length === 0 && !hasBroadWording && BARE_PRONOUN.test(text)) ||

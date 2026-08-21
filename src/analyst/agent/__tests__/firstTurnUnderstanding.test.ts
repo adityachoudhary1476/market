@@ -280,7 +280,7 @@ test('FALLBACK C — bitcoin answers honestly that no Finova data source exists'
   const body = JSON.stringify(r)
   assert.ok(!/nifty/i.test(r.title), 'no NIFTY substitution')
   assert.ok(!/\$\d[\d,]*/.test(body) || body.includes('no deterministic'), 'no fabricated bitcoin prices')
-  assert.ok(body.includes('What Finova does track'), 'coverage is listed honestly')
+  assert.ok(/no deterministic|does not cover|not available/i.test(body), 'coverage is described honestly')
 })
 
 test('FALLBACK D — Indian banks answer from the Financials sector data', async () => {

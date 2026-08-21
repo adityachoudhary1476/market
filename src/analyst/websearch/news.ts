@@ -206,6 +206,18 @@ export function normalizeStoryKey(title: string): string {
     .trim()
 }
 
+/** Conservative event key for common financial headline paraphrases. */
+export function normalizeEventKey(title: string): string {
+  return normalizeStoryKey(title)
+    .replace(/\b(crude|brent|prices?)\b/g, 'oil')
+    .replace(/\b(rises?|rally|rallies|climbs?|gains?|surges?|advances?)\b/g, 'up')
+    .replace(/\b(falls?|slides?|declines?|drops?|tumbles?|retreats?)\b/g, 'down')
+    .replace(/\b(concerns?|fears?|worries?|anxiety)\b/g, 'concern')
+    .replace(/\b(amid|on|as|the|a|an|market|price)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /**
  * Cluster independent articles into stories. First occurrence wins; every
  * later article whose normalized title matches an existing story is folded
@@ -217,7 +229,10 @@ export function clusterNewsStories(rawItems: NewsItem[]): { items: NewsItem[]; c
   const storyOf = new Map<string, NewsItem>()
   const order: NewsItem[] = []
   for (const r of rawItems) {
-    const key = normalizeStoryKey(r.title)
+    const day = r.publishedAt ? r.publishedAt.slice(0, 10) : 'unknown'
+    const exact = normalizeStoryKey(r.title)
+    const event = normalizeEventKey(r.title)
+    const key = event !== exact ? `${event}|${day}` : exact
     if (key.length === 0) {
       order.push({ ...r })
       continue
@@ -256,15 +271,19 @@ export function subjectTokens(subject: string): string[] {
   return out
 }
 
-function itemText(item: NewsItem): string {
-  return `${item.title} ${item.snippet}`.toLowerCase()
-}
-
 /**
- * Relevance ranking: items that clearly do not mention the subject are
+ * Relevance ranking: items that clearly do not match the subject are
  * demoted and dropped — but ONLY when at least one relevant item remains
  * (never leave the answer empty on a strict filter). Corroborated stories
  * and breaking/today items rank first among relevant results.
+ *
+ * Phase 3P — deterministic scoring considers:
+ *   - exact word-boundary matches in the title (weighted highest)
+ *   - word-boundary matches in the snippet
+ *   - number of distinct query tokens that match
+ *   - freshness tier (breaking > today > recent > older > unknown)
+ *   - source quality tier (major > other)
+ *   - corroboration (multiple independent outlets)
  */
 export function rankNewsRelevance(items: NewsItem[], subject: string): { items: NewsItem[]; relevantFiltered: number } {
   const tokens = subjectTokens(subject)
@@ -272,21 +291,37 @@ export function rankNewsRelevance(items: NewsItem[], subject: string): { items: 
 
   const rankOrder: NewsFreshness[] = ['breaking', 'today', 'recent', 'older', 'unknown']
   const scored = items.map((item) => {
-    const relevant = tokens.some((t) => itemText(item).includes(t))
-    return { item, relevant }
+    const text = `${item.title ?? ''} ${item.snippet ?? ''}`.toLowerCase()
+    let exactTitleMatches = 0
+    let exactSnippetMatches = 0
+    let partialMatches = 0
+    for (const token of tokens) {
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const titleRegex = new RegExp(`\\b${escaped}\\b`, 'i')
+      const snippetRegex = new RegExp(`\\b${escaped}\\b`, 'i')
+      if (titleRegex.test(item.title ?? '')) exactTitleMatches += 1
+      else if (snippetRegex.test(item.snippet ?? '')) exactSnippetMatches += 1
+      else if (text.includes(token)) partialMatches += 1
+    }
+    const totalMatches = exactTitleMatches + exactSnippetMatches + partialMatches
+    const relevant = totalMatches > 0
+    const relevanceScore =
+      exactTitleMatches * 12 +
+      exactSnippetMatches * 6 +
+      partialMatches * 1 +
+      (item.corroboratedBy >= 2 ? 50 : 0) +
+      (item.sourceTier === 'major' ? 20 : 0)
+    const freshnessIndex = rankOrder.indexOf(item.freshness)
+    const freshnessScore = Math.max(0, rankOrder.length - freshnessIndex) * 10
+    return { item, relevant, score: relevanceScore + freshnessScore }
   })
 
   const relevant = scored.filter((s) => s.relevant)
   if (relevant.length === 0) {
-    // Strict filtering would empty the answer — keep everything, honestly.
     return { items, relevantFiltered: 0 }
   }
 
-  const score = (it: NewsItem): number => {
-    const f = rankOrder.indexOf(it.freshness)
-    return (it.corroboratedBy >= 2 ? 1_000_000 : 0) + Math.max(0, rankOrder.length - f) * 10_000
-  }
-  relevant.sort((a, b) => score(b.item) - score(a.item))
+  relevant.sort((a, b) => b.score - a.score)
   return {
     items: relevant.map((s) => ({ ...s.item, relevant: true })),
     relevantFiltered: scored.length - relevant.length,
@@ -313,6 +348,8 @@ export interface ProcessNewsOptions {
   maxItems?: number
   /** Wall clock for freshness classification (injected for determinism). */
   now?: number
+  /** Drop dated results outside the requested freshness window. */
+  maxAgeDays?: number
 }
 
 /**
@@ -326,7 +363,11 @@ export function processNewsResults(
   options: ProcessNewsOptions,
 ): Omit<NewsEvidence, 'query'> {
   const now = options.now ?? Date.now()
-  const rawItems: NewsItem[] = results.map((r) => ({
+  const cutoff = options.maxAgeDays !== undefined ? now - options.maxAgeDays * DAY : null
+  const freshResults = cutoff === null
+    ? results
+    : results.filter((r) => r.publishedAt === null || Date.parse(r.publishedAt) >= cutoff)
+  const rawItems: NewsItem[] = freshResults.map((r) => ({
     ...r,
     subject: options.subject,
     freshness: classifyNewsFreshness(r.publishedAt, now),

@@ -420,6 +420,12 @@ export interface AnswerSummaryInput {
   results: ToolResult[]
 }
 
+function syntheticDataCaveat(results: ToolResult[]): string {
+  return results.some((r) => r.ok && r.metadata.available && r.metadata.dataMode === 'synthetic-demo')
+    ? ' This is Finova demo data, not a live market quote.'
+    : ''
+}
+
 /**
  * The deterministic price/level read sentence ("Nifty 50's overall trend is
  * bullish (strength 74.0), trading at 24816 (+0.25% on the day), based on the
@@ -487,7 +493,7 @@ function deterministicRead(input: AnswerSummaryInput): string | null {
  */
 export function buildAnswerFirstSummary(input: AnswerSummaryInput): string {
   const read = deterministicRead(input)
-  if (read) return read
+  if (read) return `${read}${syntheticDataCaveat(input.results)}`
   const label = input.label?.trim() ? input.label.trim() : null
   return label
     ? `${label} — here's what the available market data shows.`
@@ -617,12 +623,24 @@ export function buildDriverSummary(input: AnswerSummaryInput): string {
         `or a confirmed catalyst appears.`
       return `${lead} ${splitLine}`
     }
-    return read ? `${lead} ${read}` : lead
+    return read ? `${lead} ${read}${syntheticDataCaveat(input.results)}` : lead
   }
   if (read) {
-    return `No reliable catalyst could be established for ${named} from the available news or web evidence. ${read} — that is a price read from the market data, not a confirmed driver.`
+    return `No reliable catalyst could be established for ${named} from the available news or web evidence. ${read} — that is a price read from the market data, not a confirmed driver.${syntheticDataCaveat(input.results)}`
   }
   return `No reliable catalyst could be established for ${named} from the available news or web evidence, and no price read is available either.`
+}
+
+/** Add a plain-language provenance caveat when deterministic demo data was used. */
+export function annotateSyntheticData(response: AnalystResponse, results: ToolResult[]): AnalystResponse {
+  const hasSynthetic = results.some((r) => r.ok && r.metadata.available && r.metadata.dataMode === 'synthetic-demo')
+  if (!hasSynthetic) return response
+  const caveat = 'This uses Finova demo data, not a live market quote.'
+  const add = (text: string | undefined): string | undefined => {
+    if (!text || /demo data|live market quote/i.test(text)) return text
+    return `${text} ${caveat}`
+  }
+  return { ...response, ...(add(response.answer) ? { answer: add(response.answer) } : {}), ...(add(response.summary) ? { summary: add(response.summary) } : {}) }
 }
 
 // --- Phase 3N.3 — catalyst-vs-price conflict detection ------------------------
@@ -1031,6 +1049,8 @@ export interface HygieneOptions {
    * answer, so they are preserved rather than scrubbed.
    */
   preserveProvenance?: boolean
+  /** Deterministic presentation policy derived from the current question. */
+  depth?: 'brief' | 'standard' | 'deep'
 }
 
 /**
@@ -1062,10 +1082,21 @@ export function sanitizeUserFacingText(text: string, options: HygieneOptions = {
  */
 export function applyOutputHygiene(response: AnalystResponse, options: HygieneOptions = {}): AnalystResponse {
   const sanitize = (text: string): string => sanitizeUserFacingText(text, options)
+  const depth = options.depth ?? 'deep'
+  const answer = sanitize(response.answer ?? response.summary ?? response.sections?.[0]?.body ?? response.sections?.[0]?.bullets?.[0] ?? response.title)
+  const rawSupporting = response.supportingPoints && response.supportingPoints.length > 0
+    ? response.supportingPoints
+    : (response.sections ?? []).flatMap((s) => [s.body, ...(s.bullets ?? [])].filter((v): v is string => Boolean(v)))
+  const supportingPoints = rawSupporting.map(sanitize).filter(Boolean).slice(0, depth === 'brief' ? 2 : depth === 'standard' ? 3 : 5)
+  const followUp = response.followUp ?? response.followUps?.[0]
 
   const out: AnalystResponse = {
     ...response,
     title: sanitize(response.title),
+    answer,
+    summary: answer,
+    ...(supportingPoints.length > 0 ? { supportingPoints } : {}),
+    ...(followUp ? { followUp: sanitize(followUp) } : {}),
     ...(response.summary ? { summary: sanitize(response.summary) } : {}),
     ...(response.sections
       ? {
@@ -1127,13 +1158,35 @@ export function applyOutputHygiene(response: AnalystResponse, options: HygieneOp
       : {}),
     ...(response.sources
       ? {
-          sources: response.sources.map((s) => ({
+          sources: response.sources.slice(0, depth === 'brief' ? 3 : depth === 'standard' ? 5 : 8).map((s) => ({
             ...s,
             ...(s.title ? { title: sanitize(s.title) } : {}),
             ...(s.snippet ? { snippet: sanitize(s.snippet) } : {}),
           })),
         }
       : {}),
+  }
+  if (depth === 'brief') {
+    delete out.metrics
+    delete out.sections
+    delete out.findings
+    delete out.recommendations
+    delete out.actions
+    delete out.chart
+    delete out.plan
+    delete out.table
+    out.followUps = out.followUps?.slice(0, 1)
+    return out
+  }
+  if (depth === 'standard' && !options.preserveProvenance) {
+    delete out.sections
+    delete out.findings
+    delete out.recommendations
+    delete out.actions
+    delete out.chart
+    delete out.plan
+    delete out.table
+    out.followUps = out.followUps?.slice(0, 1)
   }
   return out
 }
@@ -1146,6 +1199,9 @@ export function applyOutputHygiene(response: AnalystResponse, options: HygieneOp
 export function renderedResponseText(response: AnalystResponse): string {
   return [
     response.title ?? '',
+    response.answer ?? '',
+    ...(response.supportingPoints ?? []),
+    response.followUp ?? '',
     response.summary ?? '',
     ...(response.sections ?? []).flatMap((s) => [s.heading, s.body ?? '', ...(s.bullets ?? [])]),
     ...(response.findings ?? []).flatMap((f) => [f.title, f.detail, f.metric ?? '']),

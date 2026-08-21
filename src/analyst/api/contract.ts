@@ -22,6 +22,8 @@ export const ANALYST_GATEWAY_PATH = '/api/analyze'
 
 /** Phase 3C.1 — web search gateway route (same origin, same protections). */
 export const SEARCH_GATEWAY_PATH = '/api/search'
+/** Optional free official market-data route (EIA daily petroleum data). */
+export const MARKET_DATA_PATH = '/api/market-data'
 
 export interface AnalystGatewayRequest {
   /** The agent system prompt (universe, rules, output schema). */

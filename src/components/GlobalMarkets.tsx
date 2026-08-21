@@ -58,8 +58,15 @@ function MacroCard({ macro }: { macro: MacroIndicator }) {
   const up = macro.trend !== 'down'
   return (
     <div className="rounded-xl border border-obsidian-900/[0.07] bg-white/70 p-4 transition-colors hover:border-obsidian-800/20">
-      <div className="text-[10px] font-semibold uppercase tracking-widest2 text-stone-400">
-        {macro.label}
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-semibold uppercase tracking-widest2 text-stone-400">
+          {macro.label}
+        </div>
+        {macro.dataMode && (
+          <span className="text-[9px] font-medium uppercase tracking-wider text-stone-400">
+            {macro.dataMode}
+          </span>
+        )}
       </div>
       <div className="mt-1.5 flex items-end justify-between">
         <div className="font-display text-lg font-semibold tabular text-obsidian-900">
